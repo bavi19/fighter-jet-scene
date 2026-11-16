@@ -48,6 +48,25 @@ The jet art is procedural: the voxel model is run-length encoded inside
   lightest), Medium uses 3 px with smooth flames (the original as
   published), High uses 2 px with smooth flames (crispest). The panel shows
   the live pixel-buffer size for the current choice.
+- **Adaptive quality + frame-rate readout** — the renderer is pixel-bound
+  (measured on the build machine: ~24 ms/frame at High vs ~3 ms at Low in
+  the overhead view, so High alone cannot match Low's frame rate on a slow
+  CPU). With Adaptive quality on (the default), the game watches the frame
+  rate and softens the pixel size when the device cannot hold ~50 fps, then
+  steps back to the chosen quality when it can. The settings panel shows the
+  live fps and the pixel size actually being rendered.
+- **Three planes** — Falcon (the original, balanced), Dart (narrow and
+  long: faster, twitchier, lower ceiling) and Titan (wide and heavy: slow
+  to turn, climbs the highest). Each is a different voxel model cut from
+  the original's slices, with its own default speed, turn rate, bank,
+  ceiling, cruising altitude and livery. Pick one on the start screen or
+  in settings; tuning the Flight sliders afterwards makes it a custom mix.
+- **Leaving the atmosphere** — climb (Cruising altitude and Ceiling now
+  reach 900) and the sky darkens to space from about altitude 120: stars
+  fade in, and in the overhead view the world becomes a globe — the
+  scene's own world tile, scrolled under the jet, with an atmosphere rim —
+  receding as you climb higher. The Titan's ceiling (520) takes you
+  deepest; the Falcon (300) just reaches full space.
 - **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
   and desktop; the pixel buffer resizes with the window.
 

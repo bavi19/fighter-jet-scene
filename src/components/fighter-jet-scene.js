@@ -55,7 +55,7 @@ const FLY = {
   TouchBoost: 'boost', // the on-screen Boost button counts as a key held down
 }
 
-export default function FighterJetScene({ pixelSize = 0, showHint = true, touchControls = 'auto', gyroRef = null, steerWithPointer = true, inputKind = '', ...rest }) {
+export default function FighterJetScene({ pixelSize = 0, showHint = true, touchControls = 'auto', gyroRef = null, steerWithPointer = true, inputKind = '', perfRef = null, ...rest }) {
   // true where the graphics card cannot draw the smooth flames: they are drawn in pixels instead
   const [noFire, setNoFire] = useState(false)
   // true on a phone or tablet: its main pointer is a finger, or a finger has touched the scene
@@ -93,6 +93,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
   const fireRef = useRef(null)
+  const spaceRef = useRef(null)
   const sceneRef = useRef(null)
   const paramsRef = useRef(params)
   const pixelRef = useRef(pixelSize)
@@ -131,6 +132,135 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       setNoFire(true)
     }
     fire?.addEventListener('webglcontextlost', onFireLost)
+    // the space view has a canvas of its own over the picture: stars and, high up, the
+    // world as a globe (the picture underneath fades out as you leave the atmosphere)
+    const space = spaceRef.current
+    const sctx = space ? space.getContext('2d') : null
+    const stars = []
+    {
+      let seed = 1234567
+      const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 }
+      for (let i = 0; i < 240; i++) stars.push({ x: rnd(), y: rnd(), r: rnd() < 0.12 ? 2 : 1, a: 0.35 + rnd() * 0.65, ph: rnd() * 6.28 })
+    }
+    let globeTile = null
+    let globeVersion = -1
+    let globeTod = ''
+    const rebuildGlobe = () => {
+      const snap = scene.worldSnapshot(256)
+      const tile = document.createElement('canvas')
+      tile.width = 256
+      tile.height = 256
+      tile.getContext('2d').putImageData(new ImageData(snap.data, snap.size, snap.size), 0, 0)
+      const big = document.createElement('canvas')
+      big.width = 768
+      big.height = 768
+      const bctx = big.getContext('2d')
+      for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) bctx.drawImage(tile, tx * 256, ty * 256)
+      globeTile = big
+      globeVersion = scene.worldVersion
+      globeTod = paramsRef.current.timeOfDay
+    }
+    const drawSpace = (now) => {
+      if (!sctx || !space) return
+      const cw = wrap.clientWidth
+      const ch = wrap.clientHeight
+      if (!cw || !ch) return
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      sctx.clearRect(0, 0, cw, ch)
+      const alt = scene.altitude
+      const t = Math.min(1, Math.max(0, (alt - 120) / 180)) // 0 on the ground, 1 in space
+      if (t <= 0.01) return
+      const spaceT = t * t * (3 - 2 * t)
+      const view = scene.view
+      // the sky darkens to space as you climb (the ground stays visible below in chase view)
+      if (view === 'top') {
+        sctx.fillStyle = 'rgba(2,4,12,' + (spaceT * 0.88).toFixed(3) + ')'
+        sctx.fillRect(0, 0, cw, ch)
+      } else if (view === 'chase') {
+        const g = sctx.createLinearGradient(0, 0, 0, ch * 0.6)
+        g.addColorStop(0, 'rgba(2,4,12,' + (spaceT * 0.75).toFixed(3) + ')')
+        g.addColorStop(1, 'rgba(2,4,12,0)')
+        sctx.fillStyle = g
+        sctx.fillRect(0, 0, cw, ch * 0.6)
+      }
+      // stars, above the horizon (in the cockpit, above the panel)
+      const top = view === 'cockpit' ? 0.45 : view === 'chase' ? 0.75 : 1
+      sctx.fillStyle = '#fff'
+      for (let i = 0; i < stars.length; i++) {
+        const st = stars[i]
+        if (st.y > top) continue
+        const tw = 0.55 + 0.45 * Math.sin(now / 700 + st.ph)
+        sctx.globalAlpha = spaceT * st.a * tw
+        sctx.fillRect(st.x * cw, st.y * ch, st.r, st.r)
+      }
+      sctx.globalAlpha = 1
+      // the world as a globe, seen from above (its surface scrolls under the jet)
+      if (view === 'top' && spaceT > 0.03) {
+        if (!globeTile || scene.worldVersion !== globeVersion || paramsRef.current.timeOfDay !== globeTod) rebuildGlobe()
+        const minD = Math.min(cw, ch)
+        const recede = Math.min(1, Math.max(0, (alt - 300) / 600))
+        const r = minD * (0.44 - 0.3 * recede)
+        const cx = cw / 2
+        const cy = ch * 0.52
+        const pos = scene.jetPos
+        const tx = (((pos.x / 2048) * 256 - 128) % 256 + 256) % 256
+        const ty = (((pos.y / 2048) * 256 - 128) % 256 + 256) % 256
+        sctx.save()
+        sctx.globalAlpha = spaceT
+        sctx.beginPath()
+        sctx.arc(cx, cy, r, 0, Math.PI * 2)
+        sctx.clip()
+        sctx.drawImage(globeTile, tx, ty, 256, 256, cx - r, cy - r, r * 2, r * 2)
+        const limb = sctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r)
+        limb.addColorStop(0, 'rgba(0,0,20,0)')
+        limb.addColorStop(1, 'rgba(0,0,20,0.5)')
+        sctx.fillStyle = limb
+        sctx.fillRect(cx - r, cy - r, r * 2, r * 2)
+        const term = sctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r)
+        term.addColorStop(0, 'rgba(0,0,30,0)')
+        term.addColorStop(1, 'rgba(0,0,30,0.35)')
+        sctx.fillStyle = term
+        sctx.fillRect(cx - r, cy - r, r * 2, r * 2)
+        sctx.restore()
+        // atmosphere: a blue glow round the limb, and the jet's ground position dead centre
+        sctx.save()
+        sctx.globalAlpha = spaceT
+        const glow = sctx.createRadialGradient(cx, cy, r * 0.92, cx, cy, r * 1.22)
+        glow.addColorStop(0, 'rgba(90,170,255,0.55)')
+        glow.addColorStop(0.5, 'rgba(90,170,255,0.18)')
+        glow.addColorStop(1, 'rgba(90,170,255,0)')
+        sctx.fillStyle = glow
+        sctx.beginPath()
+        sctx.arc(cx, cy, r * 1.22, 0, Math.PI * 2)
+        sctx.arc(cx, cy, r * 0.96, 0, Math.PI * 2, true)
+        sctx.fill('evenodd')
+        sctx.strokeStyle = 'rgba(150,205,255,0.85)'
+        sctx.lineWidth = Math.max(1, r * 0.008)
+        sctx.beginPath()
+        sctx.arc(cx, cy, r, 0, Math.PI * 2)
+        sctx.stroke()
+        const pulse = 1 + 0.15 * Math.sin(now / 450)
+        sctx.strokeStyle = 'rgba(255,255,255,0.9)'
+        sctx.lineWidth = 1.5
+        sctx.beginPath()
+        sctx.arc(cx, cy, Math.max(4, r * 0.03) * pulse, 0, Math.PI * 2)
+        sctx.stroke()
+        sctx.fillStyle = '#fff'
+        sctx.beginPath()
+        sctx.arc(cx, cy, 2, 0, Math.PI * 2)
+        sctx.fill()
+        sctx.restore()
+        // height, so the climb reads while the scene's own HUD is fading out
+        sctx.save()
+        sctx.globalAlpha = spaceT
+        sctx.fillStyle = 'rgba(255,255,255,0.9)'
+        sctx.font = '11px monospace'
+        sctx.textAlign = 'left'
+        sctx.fillText('ALT ' + Math.round(alt) + (alt >= 300 ? ' · IN SPACE' : ' · LEAVING THE ATMOSPHERE'), 14, 24)
+        sctx.restore()
+      }
+    }
 
     const layout = () => {
       const cw = wrap.clientWidth
@@ -163,6 +293,16 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         fire.style.left = canvas.style.left
         fire.style.top = canvas.style.top
       }
+      if (space) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1)
+        const sw = Math.round(cw * dpr)
+        const sh = Math.round(ch * dpr)
+        if (space.width !== sw || space.height !== sh) { space.width = sw; space.height = sh }
+        space.style.width = cw + 'px'
+        space.style.height = ch + 'px'
+        space.style.left = '0px'
+        space.style.top = '0px'
+      }
       scaleRef.current = px
     }
     layoutRef.current = layout
@@ -172,6 +312,8 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
 
     let raf = 0
     let last = performance.now()
+    let fpsEma = 0
+    let perfTick = 0
     // A game controller (a PS5 pad, say): the left stick or the D-pad flies, Cross rolls, R2 fires
     // the thrusters as hard as it is squeezed, Triangle changes the view. A controller sends no
     // events when it moves: it is read every frame.
@@ -240,8 +382,13 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
 
     const frame = (now) => {
       raf = requestAnimationFrame(frame)
-      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000))
+      const gap = Math.max(0, (now - last) / 1000)
+      const dt = Math.min(0.05, gap)
       last = now
+      // frame rate, for the adaptive quality setting (a long gap means the tab was hidden)
+      if (gap > 0 && gap < 0.25) fpsEma = fpsEma === 0 ? 1 / gap : fpsEma * 0.92 + (1 / gap) * 0.08
+      else if (gap >= 0.25) fpsEma = 0
+      if (perfRef && ++perfTick % 30 === 0) perfRef.current = { fps: Math.round(fpsEma), px: scaleRef.current, alt: scene.altitude }
       if (!scene.width) return
       readPad()
       if (gyroRef && gyroRef.current && gyroRef.current.active) sendKeys()
@@ -259,6 +406,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         }
       }
       if (fire && layer) layer.draw(flames.count, flames.data, fire.width / scene.width, now / 1000)
+      drawSpace(now)
     }
     raf = requestAnimationFrame(frame)
 
@@ -444,6 +592,8 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         className: "absolute block" ,
         style: { imageRendering: 'pixelated' },}
       )
+      /* the space view: stars and the globe, over the picture */
+      , _jsx('canvas', { ref: spaceRef, 'aria-hidden': "true", className: "pointer-events-none absolute block"  ,} )
       /* smooth flames are drawn here, over the picture */
       , _jsx('canvas', { ref: fireRef, 'aria-hidden': "true", className: "pointer-events-none absolute block"  ,} )
       /* the line of help; in the cockpit, and above the touch buttons, it sits at the top */

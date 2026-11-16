@@ -11,7 +11,7 @@ const LIVE_VALUES = {
   speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 300,
   clearance: 7, wingmen: 0, followPointer: true, invertY: true, stunts: true,
   jetScale: 0.6, spread: 1, pixelSize: 3, intro: false,
-  view: 'top', transition: 1.4, cameraFollow: 0.6, chaseDistance: 2.6,
+  view: 'top', model: 'falcon', transition: 1.4, cameraFollow: 0.6, chaseDistance: 2.6,
   chaseAngle: 12, chaseSize: 0.19,
   timeOfDay: 'day', land: 0.33, clouds: 0.45, seed: 7, shadow: true,
   flameStyle: 'realistic', afterburner: 1, trails: true,
@@ -29,6 +29,26 @@ const GRAPHICS_PRESETS = {
   high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crispest picture, needs a faster device' },
 };
 
+// Planes: each is a different voxel model (cut from the original's slices) with its
+// own default specs and livery, so each one feels different to fly.
+const PLANES = {
+  falcon: {
+    label: 'Falcon', model: 'falcon',
+    desc: 'The original — balanced, grey with orange accents.',
+    spec: { speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 300, afterburner: 1, jetScale: 0.6, bodyColor: '#545969', accentColor: '#f0580e', canopyColor: '#1e8ca0' },
+  },
+  dart: {
+    label: 'Dart', model: 'dart',
+    desc: 'Narrow and long — fast and twitchy, climbs lower.',
+    spec: { speed: 150, boost: 2.2, agility: 2.1, bank: 64, altitude: 90, ceiling: 260, afterburner: 1, jetScale: 0.55, bodyColor: '#3a3f52', accentColor: '#19b8d0', canopyColor: '#1e8ca0' },
+  },
+  titan: {
+    label: 'Titan', model: 'titan',
+    desc: 'Wide and heavy — slow to turn, but climbs the highest. The space climber.',
+    spec: { speed: 68, boost: 1.5, agility: 0.75, bank: 38, altitude: 140, ceiling: 520, afterburner: 1, jetScale: 0.75, bodyColor: '#4a4438', accentColor: '#ffb020', canopyColor: '#2a6f7a' },
+  },
+};
+
 const MODES = [
   { id: 'touch', label: 'Touch', desc: 'Drag to steer · tap to roll' },
   { id: 'gyro', label: 'Gyro', desc: 'Tilt your phone to fly' },
@@ -42,8 +62,8 @@ const SECTIONS = [
     { prop: 'boost', label: 'Thruster boost', min: 1, max: 3, step: 0.05 },
     { prop: 'agility', label: 'Turn rate', min: 0.3, max: 3, step: 0.05 },
     { prop: 'bank', label: 'Bank angle', min: 0, max: 80, step: 1 },
-    { prop: 'altitude', label: 'Cruising altitude', min: 10, max: 300, step: 1 },
-    { prop: 'ceiling', label: 'Ceiling', min: 60, max: 600, step: 5 },
+    { prop: 'altitude', label: 'Cruising altitude', min: 10, max: 600, step: 1 },
+    { prop: 'ceiling', label: 'Ceiling', min: 60, max: 900, step: 5 },
     { prop: 'clearance', label: 'Ground clearance', min: 3, max: 40, step: 1 },
     { prop: 'wingmen', label: 'Wingmen', min: 0, max: 2, step: 1 },
   ] },
@@ -116,6 +136,15 @@ function App() {
   const [gyroMsg, setGyroMsg] = useState('');
   const gyroRef = useRef({ turn: 0, climb: 0, active: false });
   const calibRef = useRef(null);
+  const perfRef = useRef({ fps: 0, px: 0, alt: 0 });
+  const [adaptive, setAdaptive] = useState(() => {
+    try { return localStorage.getItem('fighter-jet-adaptive') !== 'off'; } catch { return true; }
+  });
+  const [renderPx, setRenderPx] = useState(() => params.pixelSize > 0
+    ? params.pixelSize
+    : Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000)))));
+  const renderPxRef = useRef(params.pixelSize);
+  const [fps, setFps] = useState(0);
 
   useEffect(() => { try { localStorage.setItem('fighter-jet-params', JSON.stringify(params)); } catch {} }, [params]);
   useEffect(() => { try { localStorage.setItem('fighter-jet-mode', mode); } catch {} }, [mode]);
@@ -165,11 +194,43 @@ function App() {
     const preset = GRAPHICS_PRESETS[key];
     setParams((p) => ({ ...p, pixelSize: preset.pixelSize, flameStyle: preset.flameStyle }));
   };
-  // The pixel buffer this quality draws into, at the current window size.
-  const effPx = params.pixelSize > 0
-    ? params.pixelSize
-    : Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000))));
-  const bufferText = `Pixel buffer ${Math.ceil(window.innerWidth / effPx)} × ${Math.ceil(window.innerHeight / effPx)}`;
+  // Which plane the current model + specs match ('' = a custom mix).
+  const activePlane = Object.keys(PLANES).find((k) => {
+    const pl = PLANES[k];
+    return params.model === pl.model && Object.keys(pl.spec).every((key) => params[key] === pl.spec[key]);
+  }) || '';
+  const applyPlane = (key) => {
+    const pl = PLANES[key];
+    setParams((p) => ({ ...p, model: pl.model, ...pl.spec }));
+  };
+  // Adaptive quality: the renderer is pixel-bound, so the honest way to keep High as
+  // smooth as Low is to soften the pixel size when the device cannot hold the frame
+  // rate — and step back to the chosen quality the moment it can again.
+  const autoPx = () => Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000))));
+  const targetPx = params.pixelSize > 0 ? params.pixelSize : autoPx();
+  const bufferText = `Pixel buffer ${Math.ceil(window.innerWidth / renderPx)} × ${Math.ceil(window.innerHeight / renderPx)}`;
+  useEffect(() => {
+    renderPxRef.current = targetPx;
+    setRenderPx(targetPx);
+  }, [targetPx]);
+  useEffect(() => {
+    try { localStorage.setItem('fighter-jet-adaptive', adaptive ? 'on' : 'off'); } catch {}
+  }, [adaptive]);
+  useEffect(() => {
+    if (!started) return;
+    const id = window.setInterval(() => {
+      const cur = perfRef.current || {};
+      const f = cur.fps || 0;
+      setFps(f);
+      if (!adaptive) {
+        if (renderPxRef.current !== targetPx) { renderPxRef.current = targetPx; setRenderPx(targetPx); }
+        return;
+      }
+      if (f > 0 && f < 48 && renderPxRef.current < 6) { renderPxRef.current += 1; setRenderPx(renderPxRef.current); }
+      else if (f > 57 && renderPxRef.current > targetPx) { renderPxRef.current -= 1; setRenderPx(renderPxRef.current); }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [started, adaptive, targetPx]);
 
   const modeButtons = MODES.map((m) =>
     h('button', {
@@ -183,6 +244,20 @@ function App() {
       h('div', { style: { fontSize: 13, marginBottom: 4 } }, m.label),
       h('div', { style: { fontSize: 11, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.65)' } }, m.desc),
     ));
+
+  const planeButtons = Object.keys(PLANES).map((k) => {
+    const pl = PLANES[k];
+    return h('button', {
+      key: k, onClick: () => applyPlane(k),
+      style: {
+        ...btnStyle, flex: 1, minWidth: 100, textAlign: 'left', padding: '10px 12px',
+        borderColor: activePlane === k ? '#f0580e' : 'rgba(255,255,255,0.35)',
+        background: activePlane === k ? 'rgba(240,88,14,0.25)' : 'rgba(11,26,51,0.6)',
+      },
+    },
+      h('div', { style: { fontSize: 13, marginBottom: 4 } }, pl.label),
+      h('div', { style: { fontSize: 11, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.65)' } }, `Speed ${pl.spec.speed} · Turn ${pl.spec.agility} · Ceiling ${pl.spec.ceiling}`));
+  });
 
   const sliderRow = (c) =>
     h('label', { key: c.prop, style: { display: 'block', marginBottom: 12 } },
@@ -217,6 +292,8 @@ function App() {
   return h('div', { style: { position: 'relative', height: '100dvh', width: '100%', overflow: 'hidden', background: '#2468b4', fontFamily: 'ui-monospace, Menlo, Consolas, monospace' } },
     h(FighterJetScene, {
       ...params,
+      pixelSize: renderPx,
+      perfRef,
       gyroRef,
       steerWithPointer: mode !== 'gyro' && mode !== 'keyboard',
       inputKind: mode === 'gyro' ? 'gyro' : mode === 'keyboard' ? 'keyboard' : '',
@@ -244,6 +321,10 @@ function App() {
         h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 } }, modeButtons),
         gyroMsg && h('p', { style: { color: '#fca5a5', fontSize: 12, margin: '0 0 8px' } }, gyroMsg),
         mode === 'gyro' && gyroOn && h('p', { style: { color: '#86efac', fontSize: 12, margin: '0 0 8px' } }, 'Motion controls on — hold your phone level, then tilt to steer. Tap Calibrate any time.'),
+        h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Pick your plane'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 } }, planeButtons),
+        h('p', { style: { margin: '0 0 8px', fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 } },
+          activePlane ? PLANES[activePlane].desc : 'Each plane flies differently — pick one, or tune the Flight sliders later.'),
         h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
           h('button', {
             onClick: () => setStarted(true),
@@ -279,10 +360,19 @@ function App() {
                 background: activeGraphics === k ? 'rgba(240,88,14,0.25)' : 'rgba(11,26,51,0.6)',
               },
             }, GRAPHICS_PRESETS[k].label))),
-        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },
+        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 8px', lineHeight: 1.5 } },
           activeGraphics
             ? `${GRAPHICS_PRESETS[activeGraphics].desc} · ${bufferText}`
             : `Custom mix — pick a preset, or tune Pixel size and flames below · ${bufferText}`),
+        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 8px', lineHeight: 1.5 } },
+          started ? `${fps || '—'} fps · rendering at ${renderPx}px` + (renderPx !== targetPx ? ` (adaptive, target ${targetPx}px)` : '') : 'Frame rate shows here once you take off.'),
+        h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#dbeafe', marginBottom: 16, cursor: 'pointer' } },
+          h('input', { type: 'checkbox', checked: adaptive, onChange: (e) => setAdaptive(e.target.checked) }),
+          h('span', null, 'Adaptive quality — hold the frame rate by softening pixels when the device struggles')),
+        h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Plane'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 } }, planeButtons),
+        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },
+          activePlane ? PLANES[activePlane].desc : 'Custom mix — pick a plane, or tune the Flight sliders below.'),
         h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Controls'),
         h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 } }, modeButtons),
         gyroMsg && h('p', { style: { color: '#fca5a5', fontSize: 12, margin: '0 0 8px' } }, gyroMsg),

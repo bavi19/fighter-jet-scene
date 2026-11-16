@@ -8,11 +8,7 @@
 // Two views share one camera: the overhead sprite-stack view, and a chase view from behind
 // the jet. The camera slides between them, so the switch is a single continuous move.
 
-import {
-  JET_W, JET_L, JET_H, JET_PALETTE, decodeJet,
-  JET_PIVOT_K, JET_PIVOT_Y, JET_ENGINE_A, JET_ENGINE_Y, JET_ENGINE_R, JET_NOZZLE_K,
-  JET_WINGTIP_A, JET_WINGTIP_K, JET_WINGTIP_Y,
-} from './jet-model.js'
+import { JET_PALETTE, MODELS } from './jet-model.js'
 import { buildCockpit, drawCockpit } from './cockpit.js'
 
 
@@ -66,6 +62,7 @@ export const DEFAULT_PARAMS = {
   jetScale: 1,
   cameraFollow: 0.6,
   view: 'top',
+  model: 'falcon',
   chaseDistance: 2.6,
   chaseAngle: 12,
   chaseSize: 0.19,
@@ -100,15 +97,6 @@ const NCSHIFT = 10
 const CK = 8 // cloud stack height
 const CLOUD_ALT = 40
 
-const PIV_K = JET_PIVOT_K // pivot along the fuselage
-const PIV_Y = JET_PIVOT_Y // pivot slice (wing level)
-const ENGINE_A = JET_ENGINE_A // engines, px off the centre line
-const ENGINE_Y = JET_ENGINE_Y // engine centre height
-const ENGINE_R = JET_ENGINE_R
-const NOZZLE_K = JET_NOZZLE_K
-const WINGTIP_A = JET_WINGTIP_A
-const WINGTIP_K = JET_WINGTIP_K
-const WINGTIP_Y = JET_WINGTIP_Y
 
 const TRAIL_N = 160
 const SMOKE_N = 96 // puffs of exhaust smoke kept alive at once
@@ -292,46 +280,82 @@ function makeJet(x, y, z, yaw) {
 export function createScene(initial) {
   let p = { ...initial }
 
-  // ── the jet's slices as lists of voxels
-  const slices = decodeJet()
-  const sliceA = []
-  const sliceB = []
-  const sliceC = []
-  const shadowMask = new Uint8Array(JET_W * JET_L)
-  let firstSlice = JET_H
-  for (let y = 0; y < JET_H; y++) {
-    const s = slices[y]
-    let n = 0
-    for (let o = 0; o < s.length; o++) if (s[o]) n++
-    const a = new Float32Array(n)
-    const b = new Float32Array(n)
-    const c = new Uint8Array(n)
-    let j = 0
-    for (let k = 0; k < JET_L; k++) {
-      for (let i = 0; i < JET_W; i++) {
-        const v = s[k * JET_W + i]
-        if (!v) continue
-        a[j] = i - (JET_W - 1) / 2
-        b[j] = PIV_K - k
-        c[j] = v
-        j++
-        shadowMask[k * JET_W + i] = 1
+  // ── the jet model: slices as lists of voxels, rebuilt when the plane changes
+  let MW = 34
+  let ML = 46
+  let MH = 13
+  let PIV_K = 25.3 // pivot along the fuselage
+  let PIV_Y = 5 // pivot slice (wing level)
+  let ENGINE_A = 1.96 // engines, px off the centre line
+  let ENGINE_Y = 4.1 // engine centre height
+  let ENGINE_R = 1.63
+  let NOZZLE_K = 43.6
+  let WINGTIP_A = 15.5
+  let WINGTIP_K = 33
+  let WINGTIP_Y = 4
+  let slices = []
+  let sliceA = []
+  let sliceB = []
+  let sliceC = []
+  let shadowMask = new Uint8Array(0)
+  let firstSlice = MH
+  let jetTop = { w: MW, h: ML, cells: new Uint8Array(0) }
+
+  function buildModel() {
+    const m = MODELS[p.model] || MODELS.falcon
+    MW = m.w
+    ML = m.l
+    MH = m.h
+    PIV_K = m.pivotK
+    PIV_Y = m.pivotY
+    ENGINE_A = m.engineA
+    ENGINE_Y = m.engineY
+    ENGINE_R = m.engineR
+    NOZZLE_K = m.nozzleK
+    WINGTIP_A = m.wingtipA
+    WINGTIP_K = m.wingtipK
+    WINGTIP_Y = m.wingtipY
+    slices = m.slices
+    sliceA = []
+    sliceB = []
+    sliceC = []
+    shadowMask = new Uint8Array(MW * ML)
+    firstSlice = MH
+    for (let y = 0; y < MH; y++) {
+      const sc = slices[y]
+      let n = 0
+      for (let o = 0; o < sc.length; o++) if (sc[o]) n++
+      const a = new Float32Array(n)
+      const b = new Float32Array(n)
+      const c = new Uint8Array(n)
+      let k2 = 0
+      for (let k = 0; k < ML; k++) {
+        for (let ii = 0; ii < MW; ii++) {
+          const v = sc[k * MW + ii]
+          if (!v) continue
+          a[k2] = ii - (MW - 1) / 2
+          b[k2] = PIV_K - k
+          c[k2] = v
+          k2++
+          shadowMask[k * MW + ii] = 1
+        }
+      }
+      if (n && y < firstSlice) firstSlice = y
+      sliceA.push(a)
+      sliceB.push(b)
+      sliceC.push(c)
+    }
+
+    // the jet from above, for the cockpit's status screen: 0 empty, 1 body, 2 paint, 3 glass
+    jetTop = { w: MW, h: ML, cells: new Uint8Array(MW * ML) }
+    for (let y = MH - 1; y >= 0; y--) {
+      for (let o = 0; o < MW * ML; o++) {
+        const v = slices[y][o]
+        if (v && jetTop.cells[o] === 0) jetTop.cells[o] = 1 + Math.min(2, (v - 1) >> 4)
       }
     }
-    if (n && y < firstSlice) firstSlice = y
-    sliceA.push(a)
-    sliceB.push(b)
-    sliceC.push(c)
   }
-
-  // the jet from above, for the cockpit's status screen: 0 empty, 1 body, 2 paint, 3 glass
-  const jetTop = { w: JET_W, h: JET_L, cells: new Uint8Array(JET_W * JET_L) }
-  for (let y = JET_H - 1; y >= 0; y--) {
-    for (let o = 0; o < JET_W * JET_L; o++) {
-      const v = slices[y][o]
-      if (v && jetTop.cells[o] === 0) jetTop.cells[o] = 1 + Math.min(2, (v - 1) >> 4)
-    }
-  }
+  buildModel()
 
   // ── palettes (rebuilt when colours or the time of day change)
   const jetPal = new Uint32Array(96)
@@ -601,7 +625,8 @@ export function createScene(initial) {
         }
       }
     }
-  }
+    worldVersion++
+}
 
   // ── state
   let W = 0
@@ -630,6 +655,7 @@ export function createScene(initial) {
   let climbV = 0 // how fast it is climbing, px per second (smoothed)
   let climbTilt = 0 // the jet's climb angle, which the chase camera leans with
   let worldDirty = 0 // seconds until the world is rebuilt (waits for a slider to settle)
+  let worldVersion = 0 // increments whenever the world is rebuilt
   let reseat = false
   const cam = { x: 0, y: 0, yaw: 0, alt: p.altitude } // what the view is centred on (yaw: the overhead heading)
   const follow = { x: 0, y: 0, alt: p.altitude } // the same point as it trails the jet; the cockpit locks on instead
@@ -703,6 +729,30 @@ export function createScene(initial) {
   const flameSeen = new Float32Array(FLAME_MAX * 3).fill(1)
   const flameV = [0, 0, 0]
 
+
+  /** A top-down picture of the whole world tile, for the space view's globe:
+   *  one pixel per (N / size) world units, coloured like the scene's own terrain. */
+  function worldSnapshot(size = 256) {
+    const data = new Uint8ClampedArray(size * size * 4)
+    const step = N / size
+    for (let y = 0; y < size; y++) {
+      const gy = Math.min(N - 1, (y * step) | 0)
+      for (let x = 0; x < size; x++) {
+        const gx = Math.min(N - 1, (x * step) | 0)
+        const o = (gy << NSHIFT) | gx
+        const col = topLit[matMap[o]] || 0
+        // higher ground catches more light
+        const f = 0.72 + 0.45 * Math.min(1, heightMap[o] / ZTOP)
+        const idx = (y * size + x) * 4
+        data[idx] = Math.min(255, ((col & 255) * f) | 0)
+        data[idx + 1] = Math.min(255, (((col >> 8) & 255) * f) | 0)
+        data[idx + 2] = Math.min(255, (((col >> 16) & 255) * f) | 0)
+        data[idx + 3] = 255
+      }
+    }
+    return { size, data }
+  }
+
   /** 0..1: how far the cockpit has slid into place round the camera */
   function cockpitIn() {
     const u = clamp((vK - 0.16) / 0.84, 0, 1)
@@ -732,8 +782,8 @@ export function createScene(initial) {
     } else {
       // Each view is a camera pose; the frame shows a blend of the three.
       // chase: behind the jet (under boost it closes in a little, which widens the view)
-      const dist = clamp(p.chaseDistance, 1, 8) * JET_L * sc * (1 - 0.16 * boost)
-      const zoom = Math.max(1, (clamp(p.chaseSize, 0.05, 0.6) * W) / (JET_W * sc))
+      const dist = clamp(p.chaseDistance, 1, 8) * ML * sc * (1 - 0.16 * boost)
+      const zoom = Math.max(1, (clamp(p.chaseSize, 0.05, 0.6) * W) / (MW * sc))
       // cockpit: at the pilot's eyes, looking at a point ahead of the nose
       const focalIn = W * 0.6 * (1 - 0.1 * boost)
       const ahead = COCKPIT_LOOK * vK
@@ -772,7 +822,7 @@ export function createScene(initial) {
 
   /** how long the afterburner flames are, in jet pixels (before the flicker) */
   function flameLength() {
-    return (0.07 + 0.17 * p.afterburner) * JET_L * burn * clamp(1.6 - spreadNow * 0.6, 0, 1) * (1 + 1.6 * boost)
+    return (0.07 + 0.17 * p.afterburner) * ML * burn * clamp(1.6 - spreadNow * 0.6, 0, 1) * (1 + 1.6 * boost)
   }
   /** how far the flames bend: the exhaust trails round the inside of a turn */
   function flameBend() {
@@ -806,8 +856,8 @@ export function createScene(initial) {
   }
 
   const jetSize = () => clamp(p.jetScale || 1, 0.4, 2)
-  const formX = () => JET_W * 1.2 * jetSize() + 2
-  const formY = () => JET_L * 0.74 * jetSize()
+  const formX = () => MW * 1.2 * jetSize() + 2
+  const formY = () => ML * 0.74 * jetSize()
 
   function resetFlight() {
     const yaw = 0.9
@@ -853,6 +903,7 @@ export function createScene(initial) {
     const prev = p
     p = { ...next }
     if (prev.seed !== p.seed) { worldDirty = 0.2; reseat = true }
+    if (prev.model !== p.model) buildModel()
     if (prev.land !== p.land) worldDirty = 0.2
     if (
       prev.timeOfDay !== p.timeOfDay || prev.bodyColor !== p.bodyColor ||
@@ -1236,8 +1287,8 @@ export function createScene(initial) {
   const rowPrev = new Int32Array(64) // … and at the step before
   const offX = new Float32Array(64)
   const offY = new Float32Array(64)
-  const sliceOrder = new Int32Array(JET_H)
-  const sliceKey = new Float64Array(JET_H)
+  const sliceOrder = new Int32Array(MH)
+  const sliceKey = new Float64Array(MH)
   let prX = 0
   let prY = 0
   let prM = 0
@@ -1295,7 +1346,7 @@ export function createScene(initial) {
     const sx = sunX
     const sy = sunY
     const isc = 1 / jetSize()
-    const reach = JET_L * 0.75 * jetSize() + 3
+    const reach = ML * 0.75 * jetSize() + 3
     let nShadow = 0
     if (p.shadow && introT > 0.3) {
       for (let j = 0; j < jets.length && j < 3; j++) {
@@ -1387,8 +1438,7 @@ export function createScene(initial) {
             if (y0 < rowLo) y0 = rowLo
             if (y1 > rowHi) y1 = rowHi
             if (y0 < y1) {
-              let col = cloudTop[tk - 1]
-              if (fog > 0) col = mixHaze(col, keep, fog)
+              let col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudTop[tk - 1], keep, fog) : cloudTop[tk - 1]
               for (let y = y0, o = y0 * W + px; y < y1; y++, o += W) {
                 // the thinnest rim is a checker, so the cloud edge is soft
                 if (_fb[o] !== 0 || (tk === 1 && ((px + y) & 1) === 0)) continue
@@ -1402,7 +1452,7 @@ export function createScene(initial) {
             if (u0 < u1) {
               if (u0 < rowLo) u0 = rowLo
               if (u1 > rowHi) u1 = rowHi
-              const col = fog > 0 ? mixHaze(cloudUnder, keep, fog) : cloudUnder
+              const col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudUnder, keep, fog) : cloudUnder
               for (let y = u0, o = u0 * W + px; y < u1; y++, o += W) {
                 if (_fb[o] !== 0 || (tk === 1 && ((px + y) & 1) === 0)) continue
                 _fb[o] = col
@@ -1415,8 +1465,7 @@ export function createScene(initial) {
               if (ya < rowLo) ya = rowLo
               if (yb > rowHi) yb = rowHi
               if (ya >= yb) continue
-              let col = cloudSide[k]
-              if (fog > 0) col = mixHaze(col, keep, fog)
+              let col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudSide[k], keep, fog) : cloudSide[k]
               for (let y = ya, o = ya * W + px; y < yb; y++, o += W) {
                 if (_fb[o] === 0) { _fb[o] = col; _zb[o] = v }
               }
@@ -1433,46 +1482,52 @@ export function createScene(initial) {
         let yR = rowPrev[h]
         if (yT >= cY && yR >= cY) continue
         const mat = _m[idx]
-        // shadows: clouds, then the jets
-        let shade = 0
-        if (cloudsOn) {
-          const sv = _cn[((((gy + csy) | 0) & NCM) << NCSHIFT) | (((gx + csx) | 0) & NCM)]
-          if ((sv & 15) > 1 && sv >> 4 < rankMax) shade = 1
-        }
-        if (shade === 0 && nShadow > 0) {
-          for (let j = 0; j < nShadow; j++) {
-            const dx = gx - sjx[j] + sx * h
-            const dy = gy - sjy[j] + sy * h
-            if (dx > -reach && dx < reach && dy > -reach && dy < reach) {
-              const a = (dx * srx[j] + dy * sry[j]) * sic[j]
-              const b = (dx * sfx[j] + dy * sfy[j]) * isc
-              const i = Math.floor(a + JET_W / 2)
-              const k = Math.floor(PIV_K - b + 0.5)
-              if (i >= 0 && i < JET_W && k >= 0 && k < JET_L && shadowMask[k * JET_W + i] === 1) { shade = 1; break }
-            }
-          }
-        }
         let top
         let side
-        if (mat < 4) {
-          top = shade ? topShade[mat] : topLit[mat]
-          if (mat === 3) {
-            if (((_nz[((gy & 255) << 8) | (gx & 255)] + tF) & 255) < 120) top = shade ? topShade[2] : foamCol
-          } else if (shade === 0 && fine) {
-            const n1 = _nz[((gy & 255) << 8) | (((gx + tW1) >> 2) & 255)]
-            if (n1 > 243) {
-              const n2 = _nz[(((gy + 91) & 255) << 8) | (((gx + 1024 - tW2) >> 2) & 255)]
-              if (n2 > 128) top = n1 > 252 ? sparkB : sparkA
+        if (fog === 256) {
+          // fully hazed: every colour here is the haze colour, so skip the shading work
+          top = hazeCol
+          side = hazeCol
+        } else {
+          // shadows: clouds, then the jets
+          let shade = 0
+          if (cloudsOn) {
+            const sv = _cn[((((gy + csy) | 0) & NCM) << NCSHIFT) | (((gx + csx) | 0) & NCM)]
+            if ((sv & 15) > 1 && sv >> 4 < rankMax) shade = 1
+          }
+          if (shade === 0 && nShadow > 0) {
+            for (let j = 0; j < nShadow; j++) {
+              const dx = gx - sjx[j] + sx * h
+              const dy = gy - sjy[j] + sy * h
+              if (dx > -reach && dx < reach && dy > -reach && dy < reach) {
+                const a = (dx * srx[j] + dy * sry[j]) * sic[j]
+                const b = (dx * sfx[j] + dy * sfy[j]) * isc
+                const i = Math.floor(a + MW / 2)
+                const k = Math.floor(PIV_K - b + 0.5)
+                if (i >= 0 && i < MW && k >= 0 && k < ML && shadowMask[k * MW + i] === 1) { shade = 1; break }
+              }
             }
           }
-          side = top
-        } else {
-          top = shade ? topShade[mat] : topLit[mat]
-          side = shade ? sideShade[mat] : sideLit[mat]
-        }
-        if (fog > 0) {
-          top = mixHaze(top, keep, fog)
-          side = mixHaze(side, keep, fog)
+          if (mat < 4) {
+            top = shade ? topShade[mat] : topLit[mat]
+            if (mat === 3) {
+              if (((_nz[((gy & 255) << 8) | (gx & 255)] + tF) & 255) < 120) top = shade ? topShade[2] : foamCol
+            } else if (shade === 0 && fine) {
+              const n1 = _nz[((gy & 255) << 8) | (((gx + tW1) >> 2) & 255)]
+              if (n1 > 243) {
+                const n2 = _nz[(((gy + 91) & 255) << 8) | (((gx + 1024 - tW2) >> 2) & 255)]
+                if (n2 > 128) top = n1 > 252 ? sparkB : sparkA
+              }
+            }
+            side = top
+          } else {
+            top = shade ? topShade[mat] : topLit[mat]
+            side = shade ? sideShade[mat] : sideLit[mat]
+          }
+          if (fog > 0) {
+            top = mixHaze(top, keep, fog)
+            side = mixHaze(side, keep, fog)
+          }
         }
         // the wall of this column, where it starts …
         if (yR < cY) {
@@ -1679,7 +1734,7 @@ export function createScene(initial) {
     const m0 = S / den0
     const cx = vCx + m0 * cU
     const cy = vCy - m0 * (cW + tn * cV)
-    const far = JET_L * sc * m0 + 40
+    const far = ML * sc * m0 + 40
     if (cx < -far || cy < -far - H || cx > W + far || cy > H + far) return
     // screen steps for one voxel along the wing and along the fuselage, at the jet's centre
     const prx = m0 * rU
@@ -1711,7 +1766,7 @@ export function createScene(initial) {
     let x1 = -1
     let y1 = -1
     // several samples per voxel, more the larger it is drawn, so a turned slice has no pin-holes
-    const big = (sc * S) / Math.max(0.2, den0 - q * JET_L * 0.6 * sc)
+    const big = (sc * S) / Math.max(0.2, den0 - q * ML * 0.6 * sc)
     const ns = clamp(Math.ceil(big * 2 - 0.24), 2, 8)
     for (let i = 0; i < ns; i++) {
       for (let k = 0; k < ns; k++) {
@@ -1726,11 +1781,11 @@ export function createScene(initial) {
     let eye
     if (q < 1e-6) eye = tn * uW - uV >= 0 ? 1e9 : -1e9
     else eye = (-cU * uU + (-1 / q - cV) * uV + (tn / q - cW) * uW) / (sc * sc)
-    for (let y = 0; y < JET_H; y++) {
+    for (let y = 0; y < MH; y++) {
       sliceOrder[y] = y
       sliceKey[y] = Math.abs((y - PIV_Y) * spreadNow - eye)
     }
-    for (let i = 1; i < JET_H; i++) {
+    for (let i = 1; i < MH; i++) {
       const y = sliceOrder[i]
       const key = sliceKey[y]
       let k = i - 1
@@ -1859,7 +1914,7 @@ export function createScene(initial) {
         flameOut.count++
       }
     }
-    for (let n = 0; n < JET_H; n++) {
+    for (let n = 0; n < MH; n++) {
       const y = sliceOrder[n]
       const cnt = sliceC[y].length
       if (cnt === 0) continue
@@ -1904,7 +1959,7 @@ export function createScene(initial) {
     }
     if (flameOn && smooth) smoothFlames()
     if (flameOn && !smooth && behind) {
-      for (let y = 0; y < JET_H; y++) {
+      for (let y = 0; y < MH; y++) {
         const drop = dropOf(y)
         if (drop !== drop) continue
         const hgt = (y - PIV_Y) * spreadNow
@@ -1952,12 +2007,15 @@ export function createScene(initial) {
     const _fb = fb
     const _sh = sheet
     const side = sheetSide
+    // fixed-point stepping (x1024): integer adds instead of float adds + conversion per pixel
+    const ci = Math.round(c * 1024)
+    const si = Math.round(s * 1024)
     for (let y = 0; y < H; y++) {
       const dy = y - pivotY
-      let sx = half - c * cx - s * dy + 0.5
-      let sy = half - s * cx + c * dy + 0.5
+      let sx = Math.round((half - c * cx - s * dy + 0.5) * 1024)
+      let sy = Math.round((half - s * cx + c * dy + 0.5) * 1024)
       let o = y * W
-      for (let x = 0; x < W; x++, o++, sx += c, sy += s) _fb[o] = _sh[(sy | 0) * side + (sx | 0)]
+      for (let x = 0; x < W; x++, o++, sx += ci, sy += si) _fb[o] = _sh[(sy >> 10) * side + (sx >> 10)]
     }
   }
 
@@ -2122,6 +2180,13 @@ export function createScene(initial) {
     render,
     get width() { return W },
     get height() { return H },
+    /** the jet's height above the ground, for the space transition */
+    get altitude() { return jets[0] ? jets[0].z : 0 },
+    /** the jet's ground position, so the globe's surface scrolls under it */
+    get jetPos() { const j = jets[0]; return j ? { x: j.x, y: j.y } : { x: 0, y: 0 } },
+    /** increments whenever the world is rebuilt */
+    get worldVersion() { return worldVersion },
+    worldSnapshot,
     /** the smooth flames to lay over this frame (none while the flames are drawn in pixels) */
     get flames() { return flameOut },
     /** the view the camera is in, or heading for */

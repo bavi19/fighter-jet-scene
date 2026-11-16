@@ -97,6 +97,41 @@ const DATA = [
   'ARIBEQ4AAREBEhAAAQEQAAEB/wD/AP8A/wD/AIcAAREQAAEREAABERAAAREQAAEREAABERAAAREQAAEREAABARAAAQEIAA==',
 ].join('')
 
+/** A plane model built from the original's voxels: the slices are resampled to a new
+ *  width/length, so each plane has its own silhouette, and the geometry (pivot,
+ *  engines, wingtips) is scaled to match. The Falcon (1, 1) is the original exactly. */
+export function buildModelVariant(wScale, lScale) {
+  const base = decodeJet()
+  const w = Math.max(8, Math.round(JET_W * wScale))
+  const l = Math.max(8, Math.round(JET_L * lScale))
+  const slices = []
+  for (let y = 0; y < JET_H; y++) {
+    const src = base[y]
+    const out = new Uint8Array(w * l)
+    for (let k = 0; k < l; k++) {
+      const sk = Math.min(JET_L - 1, Math.floor(k / lScale))
+      for (let i = 0; i < w; i++) {
+        const si = Math.min(JET_W - 1, Math.floor(i / wScale))
+        out[k * w + i] = src[sk * JET_W + si]
+      }
+    }
+    slices.push(out)
+  }
+  return {
+    w, l, h: JET_H, slices,
+    pivotK: JET_PIVOT_K * lScale, pivotY: JET_PIVOT_Y,
+    engineA: JET_ENGINE_A * wScale, engineY: JET_ENGINE_Y, engineR: JET_ENGINE_R,
+    nozzleK: JET_NOZZLE_K * lScale,
+    wingtipA: JET_WINGTIP_A * wScale, wingtipK: JET_WINGTIP_K * lScale, wingtipY: JET_WINGTIP_Y,
+  }
+}
+
+export const MODELS = {
+  falcon: buildModelVariant(1, 1), // the original: balanced
+  dart: buildModelVariant(0.72, 1.18), // narrow and long: fast, twitchy
+  titan: buildModelVariant(1.32, 0.92), // wide and short: heavy, climbs highest
+}
+
 /** Decodes to JET_H slices, each a Uint8Array(JET_W * JET_L) of palette indices (row = nose → tail). */
 export function decodeJet() {
   const bin = atob(DATA)
