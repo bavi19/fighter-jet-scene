@@ -42,6 +42,12 @@ The jet art is procedural: the voxel model is run-length encoded inside
   speed, boost, turn rate, bank, cruising altitude, ceiling, jet size, slice
   spacing, pixel size, cameras, time of day, islands, clouds, seed, flames,
   trails, shadow, jet colours. Saved in localStorage, with Reset defaults.
+- **Graphics quality (Low / Medium / High)** — the scene draws into a
+  low-resolution pixel buffer that is scaled up, so pixel size *is* the
+  resolution: Low uses 6 px pixels with pixel flames (chunky retro,
+  lightest), Medium uses 3 px with smooth flames (the original as
+  published), High uses 2 px with smooth flames (crispest). The panel shows
+  the live pixel-buffer size for the current choice.
 - **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
   and desktop; the pixel buffer resizes with the window.
 

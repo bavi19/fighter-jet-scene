@@ -18,6 +18,17 @@ const LIVE_VALUES = {
   bodyColor: '#545969', accentColor: '#f0580e', canopyColor: '#1e8ca0',
 };
 
+// Graphics quality: the renderer's real knobs. The scene draws into a low-res
+// pixel buffer that is scaled up, so pixel size IS the resolution: smaller
+// pixels = a bigger buffer = a crisper picture (and more work per frame).
+// Low 6px = chunky retro, Medium 3px = the original as published,
+// High 2px = crispest the software renderer comfortably holds.
+const GRAPHICS_PRESETS = {
+  low: { label: 'Low', pixelSize: 6, flameStyle: 'pixel', desc: 'Chunky retro pixels, lightest on the device' },
+  medium: { label: 'Medium', pixelSize: 3, flameStyle: 'realistic', desc: 'The original as published' },
+  high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crispest picture, needs a faster device' },
+};
+
 const MODES = [
   { id: 'touch', label: 'Touch', desc: 'Drag to steer · tap to roll' },
   { id: 'gyro', label: 'Gyro', desc: 'Tilt your phone to fly' },
@@ -146,6 +157,20 @@ function App() {
 
   const setParam = (prop, v) => setParams((p) => ({ ...p, [prop]: v }));
 
+  // Which preset the current pixel size + flame style match ('' = a custom mix).
+  const activeGraphics = Object.keys(GRAPHICS_PRESETS).find((k) =>
+    params.pixelSize === GRAPHICS_PRESETS[k].pixelSize &&
+    params.flameStyle === GRAPHICS_PRESETS[k].flameStyle) || '';
+  const applyGraphics = (key) => {
+    const preset = GRAPHICS_PRESETS[key];
+    setParams((p) => ({ ...p, pixelSize: preset.pixelSize, flameStyle: preset.flameStyle }));
+  };
+  // The pixel buffer this quality draws into, at the current window size.
+  const effPx = params.pixelSize > 0
+    ? params.pixelSize
+    : Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000))));
+  const bufferText = `Pixel buffer ${Math.ceil(window.innerWidth / effPx)} × ${Math.ceil(window.innerHeight / effPx)}`;
+
   const modeButtons = MODES.map((m) =>
     h('button', {
       key: m.id, onClick: () => pickMode(m.id),
@@ -243,6 +268,21 @@ function App() {
           h('h2', { style: { margin: 0, fontSize: 16, letterSpacing: '0.08em' } }, 'SCENE SETTINGS'),
           h('button', { onClick: () => setShowSettings(false), style: { ...btnStyle, padding: '6px 10px' } }, '✕')),
         h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } }, 'The original scene’s parameters — tune them live.'),
+        h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Graphics'),
+        h('div', { style: { display: 'flex', gap: 6, marginBottom: 6 } },
+          Object.keys(GRAPHICS_PRESETS).map((k) =>
+            h('button', {
+              key: k, onClick: () => applyGraphics(k),
+              style: {
+                ...btnStyle, flex: 1, padding: '9px 4px', fontSize: 12,
+                borderColor: activeGraphics === k ? '#f0580e' : 'rgba(255,255,255,0.3)',
+                background: activeGraphics === k ? 'rgba(240,88,14,0.25)' : 'rgba(11,26,51,0.6)',
+              },
+            }, GRAPHICS_PRESETS[k].label))),
+        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },
+          activeGraphics
+            ? `${GRAPHICS_PRESETS[activeGraphics].desc} · ${bufferText}`
+            : `Custom mix — pick a preset, or tune Pixel size and flames below · ${bufferText}`),
         h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Controls'),
         h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 } }, modeButtons),
         gyroMsg && h('p', { style: { color: '#fca5a5', fontSize: 12, margin: '0 0 8px' } }, gyroMsg),
