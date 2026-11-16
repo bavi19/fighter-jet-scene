@@ -136,15 +136,6 @@ function App() {
   const [gyroMsg, setGyroMsg] = useState('');
   const gyroRef = useRef({ turn: 0, climb: 0, active: false });
   const calibRef = useRef(null);
-  const perfRef = useRef({ fps: 0, px: 0, alt: 0 });
-  const [adaptive, setAdaptive] = useState(() => {
-    try { return localStorage.getItem('fighter-jet-adaptive') !== 'off'; } catch { return true; }
-  });
-  const [renderPx, setRenderPx] = useState(() => params.pixelSize > 0
-    ? params.pixelSize
-    : Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000)))));
-  const renderPxRef = useRef(params.pixelSize);
-  const [fps, setFps] = useState(0);
 
   useEffect(() => { try { localStorage.setItem('fighter-jet-params', JSON.stringify(params)); } catch {} }, [params]);
   useEffect(() => { try { localStorage.setItem('fighter-jet-mode', mode); } catch {} }, [mode]);
@@ -203,34 +194,11 @@ function App() {
     const pl = PLANES[key];
     setParams((p) => ({ ...p, model: pl.model, ...pl.spec }));
   };
-  // Adaptive quality: the renderer is pixel-bound, so the honest way to keep High as
-  // smooth as Low is to soften the pixel size when the device cannot hold the frame
-  // rate — and step back to the chosen quality the moment it can again.
-  const autoPx = () => Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000))));
-  const targetPx = params.pixelSize > 0 ? params.pixelSize : autoPx();
-  const bufferText = `Pixel buffer ${Math.ceil(window.innerWidth / renderPx)} × ${Math.ceil(window.innerHeight / renderPx)}`;
-  useEffect(() => {
-    renderPxRef.current = targetPx;
-    setRenderPx(targetPx);
-  }, [targetPx]);
-  useEffect(() => {
-    try { localStorage.setItem('fighter-jet-adaptive', adaptive ? 'on' : 'off'); } catch {}
-  }, [adaptive]);
-  useEffect(() => {
-    if (!started) return;
-    const id = window.setInterval(() => {
-      const cur = perfRef.current || {};
-      const f = cur.fps || 0;
-      setFps(f);
-      if (!adaptive) {
-        if (renderPxRef.current !== targetPx) { renderPxRef.current = targetPx; setRenderPx(targetPx); }
-        return;
-      }
-      if (f > 0 && f < 48 && renderPxRef.current < 6) { renderPxRef.current += 1; setRenderPx(renderPxRef.current); }
-      else if (f > 57 && renderPxRef.current > targetPx) { renderPxRef.current -= 1; setRenderPx(renderPxRef.current); }
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [started, adaptive, targetPx]);
+  // The pixel buffer this quality draws into, at the current window size.
+  const effPx = params.pixelSize > 0
+    ? params.pixelSize
+    : Math.min(12, Math.max(2, Math.round(Math.sqrt((window.innerWidth * window.innerHeight) / 100000))));
+  const bufferText = `Pixel buffer ${Math.ceil(window.innerWidth / effPx)} × ${Math.ceil(window.innerHeight / effPx)}`;
 
   const modeButtons = MODES.map((m) =>
     h('button', {
@@ -292,8 +260,6 @@ function App() {
   return h('div', { style: { position: 'relative', height: '100dvh', width: '100%', overflow: 'hidden', background: '#2468b4', fontFamily: 'ui-monospace, Menlo, Consolas, monospace' } },
     h(FighterJetScene, {
       ...params,
-      pixelSize: renderPx,
-      perfRef,
       gyroRef,
       steerWithPointer: mode !== 'gyro' && mode !== 'keyboard',
       inputKind: mode === 'gyro' ? 'gyro' : mode === 'keyboard' ? 'keyboard' : '',
@@ -360,15 +326,10 @@ function App() {
                 background: activeGraphics === k ? 'rgba(240,88,14,0.25)' : 'rgba(11,26,51,0.6)',
               },
             }, GRAPHICS_PRESETS[k].label))),
-        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 8px', lineHeight: 1.5 } },
+        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },
           activeGraphics
             ? `${GRAPHICS_PRESETS[activeGraphics].desc} · ${bufferText}`
             : `Custom mix — pick a preset, or tune Pixel size and flames below · ${bufferText}`),
-        h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 8px', lineHeight: 1.5 } },
-          started ? `${fps || '—'} fps · rendering at ${renderPx}px` + (renderPx !== targetPx ? ` (adaptive, target ${targetPx}px)` : '') : 'Frame rate shows here once you take off.'),
-        h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#dbeafe', marginBottom: 16, cursor: 'pointer' } },
-          h('input', { type: 'checkbox', checked: adaptive, onChange: (e) => setAdaptive(e.target.checked) }),
-          h('span', null, 'Adaptive quality — hold the frame rate by softening pixels when the device struggles')),
         h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Plane'),
         h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 } }, planeButtons),
         h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },

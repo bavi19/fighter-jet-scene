@@ -55,7 +55,7 @@ const FLY = {
   TouchBoost: 'boost', // the on-screen Boost button counts as a key held down
 }
 
-export default function FighterJetScene({ pixelSize = 0, showHint = true, touchControls = 'auto', gyroRef = null, steerWithPointer = true, inputKind = '', perfRef = null, ...rest }) {
+export default function FighterJetScene({ pixelSize = 0, showHint = true, touchControls = 'auto', gyroRef = null, steerWithPointer = true, inputKind = '', ...rest }) {
   // true where the graphics card cannot draw the smooth flames: they are drawn in pixels instead
   const [noFire, setNoFire] = useState(false)
   // true on a phone or tablet: its main pointer is a finger, or a finger has touched the scene
@@ -146,16 +146,16 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
     let globeVersion = -1
     let globeTod = ''
     const rebuildGlobe = () => {
-      const snap = scene.worldSnapshot(256)
+      const snap = scene.worldSnapshot(512)
       const tile = document.createElement('canvas')
-      tile.width = 256
-      tile.height = 256
+      tile.width = 512
+      tile.height = 512
       tile.getContext('2d').putImageData(new ImageData(snap.data, snap.size, snap.size), 0, 0)
       const big = document.createElement('canvas')
-      big.width = 768
-      big.height = 768
+      big.width = 1536
+      big.height = 1536
       const bctx = big.getContext('2d')
-      for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) bctx.drawImage(tile, tx * 256, ty * 256)
+      for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) bctx.drawImage(tile, tx * 512, ty * 512)
       globeTile = big
       globeVersion = scene.worldVersion
       globeTod = paramsRef.current.timeOfDay
@@ -175,7 +175,9 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       const view = scene.view
       // the sky darkens to space as you climb (the ground stays visible below in chase view)
       if (view === 'top') {
-        sctx.fillStyle = 'rgba(2,4,12,' + (spaceT * 0.88).toFixed(3) + ')'
+        // the flat ground fades out completely: at full space nothing of it is left
+        // under the globe — the world IS the globe now, not a disc pasted on it
+        sctx.fillStyle = 'rgba(2,4,12,' + spaceT.toFixed(3) + ')'
         sctx.fillRect(0, 0, cw, ch)
       } else if (view === 'chase') {
         const g = sctx.createLinearGradient(0, 0, 0, ch * 0.6)
@@ -200,18 +202,21 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         if (!globeTile || scene.worldVersion !== globeVersion || paramsRef.current.timeOfDay !== globeTod) rebuildGlobe()
         const minD = Math.min(cw, ch)
         const recede = Math.min(1, Math.max(0, (alt - 300) / 600))
-        const r = minD * (0.44 - 0.3 * recede)
+        // the same ground, curving away: at the start of the climb the disc is bigger
+        // than the screen (it IS the ground round the jet), and it shrinks into a
+        // ball as you rise, then recedes as you keep climbing
+        const r = minD * (2.2 - 1.76 * spaceT - 0.3 * recede)
         const cx = cw / 2
         const cy = ch * 0.52
         const pos = scene.jetPos
-        const tx = (((pos.x / 2048) * 256 - 128) % 256 + 256) % 256
-        const ty = (((pos.y / 2048) * 256 - 128) % 256 + 256) % 256
+        const tx = (((pos.x / 2048) * 512 - 256) % 512 + 512) % 512
+        const ty = (((pos.y / 2048) * 512 - 256) % 512 + 512) % 512
         sctx.save()
         sctx.globalAlpha = spaceT
         sctx.beginPath()
         sctx.arc(cx, cy, r, 0, Math.PI * 2)
         sctx.clip()
-        sctx.drawImage(globeTile, tx, ty, 256, 256, cx - r, cy - r, r * 2, r * 2)
+        sctx.drawImage(globeTile, tx, ty, 512, 512, cx - r, cy - r, r * 2, r * 2)
         const limb = sctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r)
         limb.addColorStop(0, 'rgba(0,0,20,0)')
         limb.addColorStop(1, 'rgba(0,0,20,0.5)')
@@ -312,8 +317,6 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
 
     let raf = 0
     let last = performance.now()
-    let fpsEma = 0
-    let perfTick = 0
     // A game controller (a PS5 pad, say): the left stick or the D-pad flies, Cross rolls, R2 fires
     // the thrusters as hard as it is squeezed, Triangle changes the view. A controller sends no
     // events when it moves: it is read every frame.
@@ -382,13 +385,8 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
 
     const frame = (now) => {
       raf = requestAnimationFrame(frame)
-      const gap = Math.max(0, (now - last) / 1000)
-      const dt = Math.min(0.05, gap)
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000))
       last = now
-      // frame rate, for the adaptive quality setting (a long gap means the tab was hidden)
-      if (gap > 0 && gap < 0.25) fpsEma = fpsEma === 0 ? 1 / gap : fpsEma * 0.92 + (1 / gap) * 0.08
-      else if (gap >= 0.25) fpsEma = 0
-      if (perfRef && ++perfTick % 30 === 0) perfRef.current = { fps: Math.round(fpsEma), px: scaleRef.current, alt: scene.altitude }
       if (!scene.width) return
       readPad()
       if (gyroRef && gyroRef.current && gyroRef.current.active) sendKeys()

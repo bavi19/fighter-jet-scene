@@ -1438,7 +1438,8 @@ export function createScene(initial) {
             if (y0 < rowLo) y0 = rowLo
             if (y1 > rowHi) y1 = rowHi
             if (y0 < y1) {
-              let col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudTop[tk - 1], keep, fog) : cloudTop[tk - 1]
+              let col = cloudTop[tk - 1]
+              if (fog > 0) col = mixHaze(col, keep, fog)
               for (let y = y0, o = y0 * W + px; y < y1; y++, o += W) {
                 // the thinnest rim is a checker, so the cloud edge is soft
                 if (_fb[o] !== 0 || (tk === 1 && ((px + y) & 1) === 0)) continue
@@ -1452,7 +1453,7 @@ export function createScene(initial) {
             if (u0 < u1) {
               if (u0 < rowLo) u0 = rowLo
               if (u1 > rowHi) u1 = rowHi
-              const col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudUnder, keep, fog) : cloudUnder
+              const col = fog > 0 ? mixHaze(cloudUnder, keep, fog) : cloudUnder
               for (let y = u0, o = u0 * W + px; y < u1; y++, o += W) {
                 if (_fb[o] !== 0 || (tk === 1 && ((px + y) & 1) === 0)) continue
                 _fb[o] = col
@@ -1465,7 +1466,8 @@ export function createScene(initial) {
               if (ya < rowLo) ya = rowLo
               if (yb > rowHi) yb = rowHi
               if (ya >= yb) continue
-              let col = fog === 256 ? hazeCol : fog > 0 ? mixHaze(cloudSide[k], keep, fog) : cloudSide[k]
+              let col = cloudSide[k]
+              if (fog > 0) col = mixHaze(col, keep, fog)
               for (let y = ya, o = ya * W + px; y < yb; y++, o += W) {
                 if (_fb[o] === 0) { _fb[o] = col; _zb[o] = v }
               }
@@ -1482,52 +1484,46 @@ export function createScene(initial) {
         let yR = rowPrev[h]
         if (yT >= cY && yR >= cY) continue
         const mat = _m[idx]
+        // shadows: clouds, then the jets
+        let shade = 0
+        if (cloudsOn) {
+          const sv = _cn[((((gy + csy) | 0) & NCM) << NCSHIFT) | (((gx + csx) | 0) & NCM)]
+          if ((sv & 15) > 1 && sv >> 4 < rankMax) shade = 1
+        }
+        if (shade === 0 && nShadow > 0) {
+          for (let j = 0; j < nShadow; j++) {
+            const dx = gx - sjx[j] + sx * h
+            const dy = gy - sjy[j] + sy * h
+            if (dx > -reach && dx < reach && dy > -reach && dy < reach) {
+              const a = (dx * srx[j] + dy * sry[j]) * sic[j]
+              const b = (dx * sfx[j] + dy * sfy[j]) * isc
+              const i = Math.floor(a + MW / 2)
+              const k = Math.floor(PIV_K - b + 0.5)
+              if (i >= 0 && i < MW && k >= 0 && k < ML && shadowMask[k * MW + i] === 1) { shade = 1; break }
+            }
+          }
+        }
         let top
         let side
-        if (fog === 256) {
-          // fully hazed: every colour here is the haze colour, so skip the shading work
-          top = hazeCol
-          side = hazeCol
+        if (mat < 4) {
+          top = shade ? topShade[mat] : topLit[mat]
+          if (mat === 3) {
+            if (((_nz[((gy & 255) << 8) | (gx & 255)] + tF) & 255) < 120) top = shade ? topShade[2] : foamCol
+          } else if (shade === 0 && fine) {
+            const n1 = _nz[((gy & 255) << 8) | (((gx + tW1) >> 2) & 255)]
+            if (n1 > 243) {
+              const n2 = _nz[(((gy + 91) & 255) << 8) | (((gx + 1024 - tW2) >> 2) & 255)]
+              if (n2 > 128) top = n1 > 252 ? sparkB : sparkA
+            }
+          }
+          side = top
         } else {
-          // shadows: clouds, then the jets
-          let shade = 0
-          if (cloudsOn) {
-            const sv = _cn[((((gy + csy) | 0) & NCM) << NCSHIFT) | (((gx + csx) | 0) & NCM)]
-            if ((sv & 15) > 1 && sv >> 4 < rankMax) shade = 1
-          }
-          if (shade === 0 && nShadow > 0) {
-            for (let j = 0; j < nShadow; j++) {
-              const dx = gx - sjx[j] + sx * h
-              const dy = gy - sjy[j] + sy * h
-              if (dx > -reach && dx < reach && dy > -reach && dy < reach) {
-                const a = (dx * srx[j] + dy * sry[j]) * sic[j]
-                const b = (dx * sfx[j] + dy * sfy[j]) * isc
-                const i = Math.floor(a + MW / 2)
-                const k = Math.floor(PIV_K - b + 0.5)
-                if (i >= 0 && i < MW && k >= 0 && k < ML && shadowMask[k * MW + i] === 1) { shade = 1; break }
-              }
-            }
-          }
-          if (mat < 4) {
-            top = shade ? topShade[mat] : topLit[mat]
-            if (mat === 3) {
-              if (((_nz[((gy & 255) << 8) | (gx & 255)] + tF) & 255) < 120) top = shade ? topShade[2] : foamCol
-            } else if (shade === 0 && fine) {
-              const n1 = _nz[((gy & 255) << 8) | (((gx + tW1) >> 2) & 255)]
-              if (n1 > 243) {
-                const n2 = _nz[(((gy + 91) & 255) << 8) | (((gx + 1024 - tW2) >> 2) & 255)]
-                if (n2 > 128) top = n1 > 252 ? sparkB : sparkA
-              }
-            }
-            side = top
-          } else {
-            top = shade ? topShade[mat] : topLit[mat]
-            side = shade ? sideShade[mat] : sideLit[mat]
-          }
-          if (fog > 0) {
-            top = mixHaze(top, keep, fog)
-            side = mixHaze(side, keep, fog)
-          }
+          top = shade ? topShade[mat] : topLit[mat]
+          side = shade ? sideShade[mat] : sideLit[mat]
+        }
+        if (fog > 0) {
+          top = mixHaze(top, keep, fog)
+          side = mixHaze(side, keep, fog)
         }
         // the wall of this column, where it starts …
         if (yR < cY) {
@@ -2007,15 +2003,12 @@ export function createScene(initial) {
     const _fb = fb
     const _sh = sheet
     const side = sheetSide
-    // fixed-point stepping (x1024): integer adds instead of float adds + conversion per pixel
-    const ci = Math.round(c * 1024)
-    const si = Math.round(s * 1024)
     for (let y = 0; y < H; y++) {
       const dy = y - pivotY
-      let sx = Math.round((half - c * cx - s * dy + 0.5) * 1024)
-      let sy = Math.round((half - s * cx + c * dy + 0.5) * 1024)
+      let sx = half - c * cx - s * dy + 0.5
+      let sy = half - s * cx + c * dy + 0.5
       let o = y * W
-      for (let x = 0; x < W; x++, o++, sx += ci, sy += si) _fb[o] = _sh[(sy >> 10) * side + (sx >> 10)]
+      for (let x = 0; x < W; x++, o++, sx += c, sy += s) _fb[o] = _sh[(sy | 0) * side + (sx | 0)]
     }
   }
 
