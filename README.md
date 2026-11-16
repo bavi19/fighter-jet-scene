@@ -1,59 +1,83 @@
-# Fighter Jet Scene — Free Flight
+# Fighter Jet Scene
 
 A pixel-art fighter jet in continuous free flight over a procedurally seeded
-ocean-and-islands world. A from-scratch recreation of the
-[Forge UI8 “fighter” scene](https://forge.ui8.ai/share/frag_1eb8944c-57b1-42ca-a909-5c2d7e517c24),
-rebuilt with crisper, cleaner graphics in the style of the red pixel plane
-(pale sky, flat shaded pixels, soft shadows, white speed streaks).
+ocean-and-islands world. No enemies, no score — just fly.
 
-No build step, no dependencies — plain HTML + CSS + Canvas 2D. Open
-`index.html` or serve the folder with any static host / Vercel.
+**Live:** https://fighter-jet-scene.vercel.app
 
-## Same architecture as the original
+## Origin — the original code, not a rewrite
 
-One component — **Fighter jet scene** — with the same parameter set:
+This is a port of the original Forge UI8 project
+["fighter"](https://forge.ui8.ai/share/frag_1eb8944c-57b1-42ca-a909-5c2d7e517c24)
+(Fighter jet scene), which is published publicly with remix access. Its exact
+source was recovered from the project's public preview and is used here as the
+base, with only the small additions listed below:
 
-| Group | Parameters |
-|---|---|
-| Flight | Speed 92 · Thruster boost 1.8× · Turn rate 1.25 · Bank 52° · Cruising altitude 110 · Ceiling 300 · Ground clearance 7 · Wingmen 0 |
-| Sprite stack | Jet size 0.6 · Slice spacing 1 · Pixel size 3 (stacked-slice extrusion under the jet) |
-| Camera | Top / Chase / Cockpit (Space cycles) · View change ~1.4 s fade · Chase distance 2.6 jet lengths |
-| World | Time of day Day/Sunset/Night · Islands 0.33 · Clouds 0.45 · World seed 7 · Jet shadow on |
-| Effects | Afterburner flames · Wingtip trails on |
-| Jet colours | Body, Accent, Canopy (default red `#d9382e` to match the reference plane) |
+- `src/components/fighter-jet-scene.js` — the original React component
+  (was `src/components/fighter-jet-scene.tsx`)
+- `src/lib/scene.js` — the original software renderer: low-resolution pixel
+  buffer, sprite-stack jet, stacked islands and clouds, overhead + chase +
+  cockpit cameras (was `src/lib/scene.ts`)
+- `src/lib/cockpit.js`, `src/lib/jet-model.js`, `src/lib/flame-layer.js` —
+  the original cockpit instruments, jet voxel model and flame layer
+- `original/` — the unmodified source files exactly as served by the Forge
+  preview, kept for reference
 
-The world is procedurally seeded (seed 7 by default): islands with beaches,
-grass, forest and rock, drifting clouds with shadows on the ocean, all
-deterministic per seed. There is no score, enemy, or end state — free flight,
-exactly like the original.
+The only changes to the original files are mechanical: `.ts`/`.tsx` renamed
+to `.js` with import paths fixed (the served files are already plain JS), and
+three small, clearly marked additions in the component for the control modes
+below (`gyroRef`, `steerWithPointer`, `inputKind`).
 
-## Controls — pick one on the start screen
+The jet art is procedural: the voxel model is run-length encoded inside
+`src/lib/jet-model.js` — no image assets are needed.
 
-| Mode | How to fly |
-|---|---|
-| 👆 **Touch** | Drag anywhere to steer — drag down to climb, up to dive. Tap to roll. On-screen Thrust button for afterburner. |
-| 📱 **Gyro** | Tilt the phone to steer — tilt left/right to turn, tilt back to climb, forward to dive. Tap **Enable motion** (iOS asks permission), then **Calibrate** while holding the phone as you will fly. Falls back gracefully if the device has no gyro. |
-| 🖱️ **Mouse** | Move the mouse to steer — down climbs, up dives. Click to roll. Hold the mouse button (or Shift) for afterburner. |
-| ⌨️ **Keyboard** | GTA-style: ← → / A–D to turn, ↑ ↓ / W–S to pitch (down climbs), Shift for afterburner, Q / E to roll, Space to change view, P to pause. |
+## What's added on top
 
-Space cycles **Top → Chase → Cockpit** in every mode. Settings (⚙️) tune
-every parameter above live, and are saved in the browser.
+- **Control modes** (start screen, switchable any time from Controls):
+  Touch (drag to steer, tap to roll), **Gyro** (tilt the phone to fly, with
+  Calibrate), Mouse (move to steer, click to roll), Keyboard (GTA-style
+  arrows/WASD, Shift for the thrusters, Space to change view). The original
+  already had touch, mouse, keyboard and gamepad input; gyro is new.
+- **Scene settings panel** — every one of the original's parameters, live:
+  speed, boost, turn rate, bank, cruising altitude, ceiling, jet size, slice
+  spacing, pixel size, cameras, time of day, islands, clouds, seed, flames,
+  trails, shadow, jet colours. Saved in localStorage, with Reset defaults.
+- **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
+  and desktop; the pixel buffer resizes with the window.
 
-## Responsive
+## Controls (original)
 
-Full-viewport canvas, device-pixel-ratio aware, `viewport-fit=cover` with
-safe-area insets. Works in portrait and landscape on phones, tablets and
-desktop; touch targets are thumb-sized and the layout collapses to one column
-under 640 px.
+- **Space** — cycle Top → Chase → Cockpit
+- **Arrows / WASD** — fly (down climbs, up dives, like a flight stick)
+- **Shift** — fire the thrusters
+- **Click / tap** — roll
+- **Hold** — thrusters (mouse hold / Boost button on touch)
+- **Gamepad** — left stick to fly, Cross to roll, R2 for thrusters,
+  Triangle to change view
 
-## Run locally
+## Run it
 
-```sh
+No build step. Serve the folder statically and open it:
+
+```bash
 python3 -m http.server 8000
 # open http://localhost:8000
 ```
 
+React 19 comes from esm.sh via an import map in `index.html`; Tailwind
+classes (used by the original component) come from the Tailwind browser CDN.
+
 ## Deploy
 
-Static site — deploy the repo root as-is on Vercel (no build command, no
-output directory change needed).
+Static site. The Vercel project `fighter-jet-scene` is linked to this repo's
+`main` branch and redeploys automatically on every push (Framework: Other,
+no build command).
+
+## Original parameters (as published)
+
+Speed 92 · Thruster boost 1.8× · Turn rate 1.25 · Bank 52° · Cruising
+altitude 110 · Ceiling 300 · Ground clearance 7 · Wingmen 0 · Jet size 0.6 ·
+Slice spacing 1 · Pixel size 3 · View change 1.4s · Chase distance 2.6 jet
+lengths · Chase height 12° · Chase jet width 0.19 · Islands 0.33 · Clouds
+0.45 · World seed 7 · Afterburner 1 · Flame style realistic · Jet colours
+Body `#545969`, Accent `#f0580e`, Canopy `#1e8ca0`.
