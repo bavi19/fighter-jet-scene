@@ -83,6 +83,10 @@ export const DEFAULT_PARAMS = {
   bodyColor: '#545969',
   accentColor: '#f0580e',
   canopyColor: '#1e8ca0',
+  // how many buffer pixels one world unit spans in the overhead view, relative
+  // to the original (1 at Medium's 3px). The component sets it so the framing
+  // stays fixed across graphics settings and small screens.
+  viewScale: 1,
 }
 
 // ───────────────────────────────────────────────────────────── constants
@@ -769,11 +773,14 @@ export function createScene(initial) {
     cam.y = follow.y
     cam.alt = follow.alt
     if ((vC === 0 && vK === 0) || !lead) {
-      // the plain overhead view, exactly
+      // the plain overhead view, exactly — its scale is the view scale, not 1:
+      // the overhead view maps one world unit to one buffer pixel, so without
+      // this a coarser buffer (Low graphics) would show less world and a
+      // bigger jet, i.e. look zoomed in
       vQ = 0
       vTan = 1
       vLean = 1
-      vS = 1
+      vS = viewScale()
       vCy = H >> 1
       vSteerY = vCy
       vRoll = 0
@@ -793,7 +800,10 @@ export function createScene(initial) {
       cam.y += (lead.y - cs * ahead - follow.y) * vK
       cam.alt += (lead.z + COCKPIT_EYE * sc - follow.alt) * vK
       vQ = vC / dist + vK / COCKPIT_LOOK
-      vS = Math.exp(vC * Math.log(zoom) + vK * Math.log(focalIn / COCKPIT_LOOK))
+      // the chase and cockpit scales already track the buffer width, so they
+      // need no correction; only the overhead part of the blend gets the view
+      // scale (top = 1 in the overhead view, 0 in chase/cockpit)
+      vS = Math.exp(vC * Math.log(zoom) + vK * Math.log(focalIn / COCKPIT_LOOK)) * Math.pow(viewScale(), top)
       // how steeply it looks down: 45° overhead, the chase angle behind, level in the cockpit.
       // The chase camera drops behind the jet as it climbs and rises over it as it dives, and
       // camFix lifts or lowers it to stay clear of the hills and out of the cloud layer.
@@ -856,6 +866,8 @@ export function createScene(initial) {
   }
 
   const jetSize = () => clamp(p.jetScale || 1, 0.4, 2)
+  /** buffer pixels per world unit in the overhead view (1 = the original framing) */
+  const viewScale = () => clamp(p.viewScale || 1, 0.25, 4)
   const formX = () => MW * 1.2 * jetSize() + 2
   const formY = () => ML * 0.74 * jetSize()
 

@@ -50,7 +50,11 @@ The jet art is procedural: the voxel model is run-length encoded inside
   screen's native resolution, the sharpest the renderer can draw. The panel
   shows the live pixel-buffer size for the current choice. The top rungs are
   heavy: on the slow build machine Very High runs ~19 fps and Ultra ~9 fps
-  in the overhead view, so they are for fast desktops.
+  in the overhead view, so they are for fast desktops. The framing does not
+  change with the setting: the overhead view is scaled so Low frames exactly
+  the same area as Medium (only chunkier) — before this fix Low showed half
+  the world and a jet twice as big on screen. Small screens are also zoomed
+  out a little, so there is more room to play on a phone.
 - **Three planes** — Falcon (the original, balanced), Dart (narrow and
   long: faster, twitchier, lower ceiling) and Titan (wide and heavy: slow
   to turn, climbs the highest). Each is a different voxel model cut from

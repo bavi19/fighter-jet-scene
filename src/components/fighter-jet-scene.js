@@ -97,6 +97,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
   const sceneRef = useRef(null)
   const paramsRef = useRef(params)
   const pixelRef = useRef(pixelSize)
+  const viewScaleRef = useRef(1)
   const scaleRef = useRef(4)
   const layoutRef = useRef(() => {})
   const [hint, setHint] = useState({ mode: viewOf(params.view), on: true })
@@ -283,6 +284,16 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         scene.resize(lw, lh)
         image = null
       }
+      // Keep the framing fixed: the overhead view maps one world unit to one
+      // buffer pixel, so without this a coarser buffer (Low graphics) shows
+      // less world and a bigger jet — it looks zoomed in, and on a phone
+      // there is hardly any room to play. Scale the view by the pixel size
+      // (relative to Medium's 3px) so every setting frames the same area,
+      // and widen it further on small screens, where the jet otherwise fills
+      // the frame. Chase and cockpit already scale with the screen, so only
+      // the overhead view is corrected (inside the scene).
+      viewScaleRef.current = (3 / px) * Math.max(0.5, Math.min(1, Math.min(cw, ch) / 700))
+      scene.setParams({ ...paramsRef.current, viewScale: viewScaleRef.current })
       canvas.style.width = lw * px + 'px'
       canvas.style.height = lh * px + 'px'
       canvas.style.left = Math.round((cw - lw * px) / 2) + 'px'
@@ -477,7 +488,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
   }, [])
 
   useEffect(() => {
-    sceneRef.current?.setParams(paramsRef.current)
+    sceneRef.current?.setParams({ ...paramsRef.current, viewScale: viewScaleRef.current })
   }, [signature])
 
   useEffect(() => {
