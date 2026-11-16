@@ -22,12 +22,12 @@ const LIVE_VALUES = {
 // pixel buffer that is scaled up, so pixel size IS the resolution: smaller
 // pixels = a bigger buffer = a crisper picture (and more work per frame).
 // Low 6px = chunky retro, Medium 3px = the original as published,
-// High 2px, Very High 1.5px, Ultra 1px = the screen's native resolution.
+// High 2px, Ultra 1px = the screen's native resolution. (Very High at 1.5px
+// was removed: it looked almost the same as High.)
 const GRAPHICS_PRESETS = {
   low: { label: 'Low', pixelSize: 6, flameStyle: 'pixel', desc: 'Chunky retro pixels, lightest on the device' },
   medium: { label: 'Medium', pixelSize: 3, flameStyle: 'realistic', desc: 'The original as published' },
   high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crisp, needs a faster device' },
-  veryHigh: { label: 'Very High', pixelSize: 1.5, flameStyle: 'realistic', desc: 'Near-native sharpness, heavy' },
   ultra: { label: 'Ultra', pixelSize: 1, flameStyle: 'realistic', desc: 'Native resolution — the sharpest possible, needs a fast desktop' },
 };
 

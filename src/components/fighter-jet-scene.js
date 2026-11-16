@@ -273,8 +273,8 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       const ch = wrap.clientHeight
       if (!cw || !ch) return
       const auto = Math.min(12, Math.max(2, Math.round(Math.sqrt((cw * ch) / 100000))))
-      // pixel size may be fractional (Very High is 1.5px): the buffer is whole pixels,
-      // the canvas is scaled by the exact size, so no rounding here
+      // pixel size may be fractional (the slider steps in 0.5px): the buffer is
+      // whole pixels, the canvas is scaled by the exact size, so no rounding here
       const px = pixelRef.current > 0 ? Math.max(1, pixelRef.current) : auto
       const lw = Math.ceil(cw / px)
       const lh = Math.ceil(ch / px)
