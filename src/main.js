@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import FighterJetScene from './components/fighter-jet-scene.js';
+import { sound } from './lib/sound.js';
 
 const h = React.createElement;
 
@@ -134,6 +135,9 @@ function App() {
   });
   const [started, setStarted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [muted, setMuted] = useState(() => {
+    try { return localStorage.getItem('fighter-jet-sound') === 'off'; } catch { return false; }
+  });
   const [gyroOn, setGyroOn] = useState(false);
   const [gyroMsg, setGyroMsg] = useState('');
   const gyroRef = useRef({ turn: 0, climb: 0, active: false });
@@ -141,6 +145,7 @@ function App() {
 
   useEffect(() => { try { localStorage.setItem('fighter-jet-params', JSON.stringify(params)); } catch {} }, [params]);
   useEffect(() => { try { localStorage.setItem('fighter-jet-mode', mode); } catch {} }, [mode]);
+  useEffect(() => { sound.setMuted(muted); try { localStorage.setItem('fighter-jet-sound', muted ? 'off' : 'on'); } catch {} }, [muted]);
 
   // Gyro: tilt the device to fly. Calibrated to wherever the device is when enabled.
   useEffect(() => {
@@ -185,6 +190,7 @@ function App() {
     params.flameStyle === GRAPHICS_PRESETS[k].flameStyle) || '';
   const applyGraphics = (key) => {
     const preset = GRAPHICS_PRESETS[key];
+    sound.click();
     setParams((p) => ({ ...p, pixelSize: preset.pixelSize, flameStyle: preset.flameStyle }));
   };
   // Which plane the current model + specs match ('' = a custom mix).
@@ -194,6 +200,7 @@ function App() {
   }) || '';
   const applyPlane = (key) => {
     const pl = PLANES[key];
+    sound.click();
     setParams((p) => ({ ...p, model: pl.model, ...pl.spec }));
   };
   // The pixel buffer this quality draws into, at the current window size.
@@ -295,7 +302,7 @@ function App() {
           activePlane ? PLANES[activePlane].desc : 'Each plane flies differently — pick one, or tune the Flight sliders later.'),
         h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
           h('button', {
-            onClick: () => setStarted(true),
+            onClick: () => { sound.unlock(); sound.takeoff(); setStarted(true); },
             style: { ...btnStyle, flex: 1, background: '#d9382e', borderColor: '#d9382e', fontSize: 14, padding: '13px' },
           }, 'Take off ✈'),
           h('button', { onClick: () => setShowSettings(true), style: btnStyle }, 'Scene settings')),
@@ -332,6 +339,10 @@ function App() {
           activeGraphics
             ? `${GRAPHICS_PRESETS[activeGraphics].desc} · ${bufferText}`
             : `Custom mix — pick a preset, or tune Pixel size and flames below · ${bufferText}`),
+        h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Sound'),
+        h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#dbeafe', marginBottom: 16, cursor: 'pointer' } },
+          h('input', { type: 'checkbox', checked: !muted, onChange: (e) => { setMuted(!e.target.checked); if (e.target.checked) sound.unlock(); } }),
+          h('span', null, 'Sound effects — engine hum, wind and thrusters (synthesized, no downloads)')),
         h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Plane'),
         h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 } }, planeButtons),
         h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } },

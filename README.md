@@ -63,18 +63,18 @@ The jet art is procedural: the voxel model is run-length encoded inside
   in settings; tuning the Flight sliders afterwards makes it a custom mix.
 - **Leaving the atmosphere** — climb (Cruising altitude and Ceiling now
   reach 900) and the sky darkens to space from about altitude 120: stars
-  fade in, and in the overhead view the flat ground itself becomes the
-  globe. The disc starts as the whole flat view — the live picture, at its
-  own scale, so the terrain matches exactly — and shrinks into a ball as
-  you rise; only once it is a ball does it crossfade to the whole-planet
-  picture, with limb shading and an atmosphere rim growing in as it does.
-  The transition is eased (a smoothed space amount, and a separate one for
-  the globe itself), so switching to the overhead view while already high
-  eases the globe in over a couple of seconds instead of dropping it on
-  screen, and descending flattens the globe back into land. At full space
-  the flat ground is gone entirely: only the globe and the stars are left,
-  the globe receding as you keep climbing. The Titan's ceiling (520) takes
-  you deepest; the Falcon (300) just reaches full space.
+  fade in, the world below going dark, until at full space only a dark sky,
+  stars and the height readout are left. (An earlier globe — the ground
+  turning into a ball — was tried twice and dropped at the user's request:
+  a dark sky is enough.) The Titan's ceiling (520) takes you deepest; the
+  Falcon (300) just reaches full space.
+- **Sound effects** — synthesized with Web Audio, no audio files: a low
+  engine hum that rises with speed and boost, wind that grows with speed
+  and height, a thruster roar while the afterburners are open, a spool-up
+  sweep on take-off, a whoosh when the view changes, and a soft click when
+  a graphics preset or a plane is picked. Audio starts on the Take off tap
+  (browsers need a gesture); a Sound toggle in the settings panel mutes it,
+  remembered between visits.
 - **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
   and desktop; the pixel buffer resizes with the window.
 

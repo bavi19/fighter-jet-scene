@@ -2,6 +2,7 @@ import {jsxs as _jsxs, jsx as _jsx, Fragment as _Fragment} from "react/jsx-runti
 import { createScene, DEFAULT_PARAMS } from '../lib/scene.js'
 
 import { createFlameLayer } from '../lib/flame-layer.js'
+import { sound } from '../lib/sound.js'
 
 
 
@@ -134,7 +135,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
     }
     fire?.addEventListener('webglcontextlost', onFireLost)
     // the space view has a canvas of its own over the picture: stars and, high up, the
-    // world as a globe (the picture underneath fades out as you leave the atmosphere)
+    // the dark sky above the world as you climb (stars, and the height readout)
     const space = spaceRef.current
     const sctx = space ? space.getContext('2d') : null
     const stars = []
@@ -143,30 +144,9 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 }
       for (let i = 0; i < 240; i++) stars.push({ x: rnd(), y: rnd(), r: rnd() < 0.12 ? 2 : 1, a: 0.35 + rnd() * 0.65, ph: rnd() * 6.28 })
     }
-    let globeTile = null
-    let globeVersion = -1
-    let globeTod = ''
-    // the space amount, smoothed so the globe never pops: dispT follows the
-    // altitude, globeT follows the overhead view — switching to it while
-    // already high eases the globe in instead of dropping it on screen
+    // the space amount, smoothed so the sky darkens gradually, never in one step
     let dispT = 0
-    let globeT = 0
     let lastSpaceNow = 0
-    const rebuildGlobe = () => {
-      const snap = scene.worldSnapshot(512)
-      const tile = document.createElement('canvas')
-      tile.width = 512
-      tile.height = 512
-      tile.getContext('2d').putImageData(new ImageData(snap.data, snap.size, snap.size), 0, 0)
-      const big = document.createElement('canvas')
-      big.width = 1536
-      big.height = 1536
-      const bctx = big.getContext('2d')
-      for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 3; tx++) bctx.drawImage(tile, tx * 512, ty * 512)
-      globeTile = big
-      globeVersion = scene.worldVersion
-      globeTod = paramsRef.current.timeOfDay
-    }
     const drawSpace = (now) => {
       if (!sctx || !space) return
       const cw = wrap.clientWidth
@@ -177,15 +157,15 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       sctx.clearRect(0, 0, cw, ch)
       const alt = scene.altitude
       const t = Math.min(1, Math.max(0, (alt - 120) / 180)) // 0 on the ground, 1 in space
-      // ease both amounts toward their targets (dt in seconds, capped for hitches)
+      // ease toward the target so the sky darkens gradually, never in one step
       const dt = lastSpaceNow ? Math.min(0.1, Math.max(0, (now - lastSpaceNow) / 1000)) : 0.016
       lastSpaceNow = now
       dispT += (t - dispT) * (1 - Math.exp(-dt / 0.5))
-      const view = scene.view
-      globeT += ((view === 'top' ? dispT : 0) - globeT) * (1 - Math.exp(-dt / 0.7))
-      if (dispT <= 0.005 && globeT <= 0.005) return
+      if (dispT <= 0.005) return
       const spaceT = dispT * dispT * (3 - 2 * dispT)
-      // the sky darkens to space as you climb (the ground stays visible below in chase view)
+      const view = scene.view
+      // the sky darkens to space as you climb — that is the whole effect now:
+      // no globe, just a dark sky and stars above the world
       if (view === 'top') {
         sctx.fillStyle = 'rgba(2,4,12,' + spaceT.toFixed(3) + ')'
         sctx.fillRect(0, 0, cw, ch)
@@ -207,102 +187,14 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         sctx.fillRect(st.x * cw, st.y * ch, st.r, st.r)
       }
       sctx.globalAlpha = 1
-      // the world as a globe, seen from above: the flat ground itself becomes
-      // the ball. The disc starts as the whole flat view — the live picture,
-      // at its own scale, so the terrain matches exactly — and shrinks into a
-      // ball as you rise; only once it is a ball does it crossfade to the
-      // whole-planet picture, which the live view cannot show.
-      if (view === 'top' && globeT > 0.005) {
-        if (!globeTile || scene.worldVersion !== globeVersion || paramsRef.current.timeOfDay !== globeTod) rebuildGlobe()
-        const minD = Math.min(cw, ch)
-        const recede = Math.min(1, Math.max(0, (alt - 300) / 600))
-        const g = globeT * globeT * (3 - 2 * globeT) // eased globe amount
-        // how much of the finished planet shows yet (0 = the live ground, 1 = the whole world)
-        const snapA = Math.min(1, Math.max(0, (g - 0.55) / 0.25))
-        // how much it already reads as a ball (limb shading, atmosphere)
-        const ballA = Math.min(1, Math.max(0, (g - 0.45) / 0.35))
-        // the disc centre drifts from dead centre (where the jet is, so the
-        // morph is seamless) to slightly low once it is a globe
-        const cx = cw / 2
-        const cy = ch * (0.5 + 0.02 * snapA)
-        // radius: from covering the screen down to the globe, easing in slow
-        // so the edge creeps in from the corners instead of jumping on screen
-        const r0 = Math.hypot(cw / 2, Math.max(cy, ch - cy)) + 2
-        const r1 = minD * 0.44
-        const r = Math.max(minD * 0.1, r0 + (r1 - r0) * g - minD * 0.3 * recede)
-        // the live flat view, at its own scale, clipped to the disc — the same
-        // ground you were just flying over, now a ball
-        sctx.save()
-        sctx.beginPath()
-        sctx.arc(cx, cy, r, 0, Math.PI * 2)
-        sctx.clip()
-        const imgW = canvas.width * scaleRef.current
-        const imgH = canvas.height * scaleRef.current
-        sctx.drawImage(canvas, cx - imgW / 2, cy - imgH / 2, imgW, imgH)
-        // the whole planet, fading in over the live ground once the ball is small
-        if (snapA > 0) {
-          const pos = scene.jetPos
-          const tx = (((pos.x / 2048) * 512 - 256) % 512 + 512) % 512
-          const ty = (((pos.y / 2048) * 512 - 256) % 512 + 512) % 512
-          sctx.globalAlpha = snapA
-          sctx.drawImage(globeTile, tx, ty, 512, 512, cx - r, cy - r, r * 2, r * 2)
-          sctx.globalAlpha = 1
-        }
-        // limb shading + terminator, growing as it becomes a ball
-        if (ballA > 0) {
-          sctx.globalAlpha = ballA
-          const limb = sctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r)
-          limb.addColorStop(0, 'rgba(0,0,20,0)')
-          limb.addColorStop(1, 'rgba(0,0,20,0.5)')
-          sctx.fillStyle = limb
-          sctx.fillRect(cx - r, cy - r, r * 2, r * 2)
-          const term = sctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r)
-          term.addColorStop(0, 'rgba(0,0,30,0)')
-          term.addColorStop(1, 'rgba(0,0,30,0.35)')
-          sctx.fillStyle = term
-          sctx.fillRect(cx - r, cy - r, r * 2, r * 2)
-          sctx.globalAlpha = 1
-        }
-        sctx.restore()
-        // atmosphere: a blue glow round the limb, and the jet's ground position dead centre
-        if (ballA > 0) {
-          sctx.save()
-          sctx.globalAlpha = ballA
-          const glow = sctx.createRadialGradient(cx, cy, r * 0.92, cx, cy, r * 1.22)
-          glow.addColorStop(0, 'rgba(90,170,255,0.55)')
-          glow.addColorStop(0.5, 'rgba(90,170,255,0.18)')
-          glow.addColorStop(1, 'rgba(90,170,255,0)')
-          sctx.fillStyle = glow
-          sctx.beginPath()
-          sctx.arc(cx, cy, r * 1.22, 0, Math.PI * 2)
-          sctx.arc(cx, cy, r * 0.96, 0, Math.PI * 2, true)
-          sctx.fill('evenodd')
-          sctx.strokeStyle = 'rgba(150,205,255,0.85)'
-          sctx.lineWidth = Math.max(1, r * 0.008)
-          sctx.beginPath()
-          sctx.arc(cx, cy, r, 0, Math.PI * 2)
-          sctx.stroke()
-          const pulse = 1 + 0.15 * Math.sin(now / 450)
-          sctx.strokeStyle = 'rgba(255,255,255,0.9)'
-          sctx.lineWidth = 1.5
-          sctx.beginPath()
-          sctx.arc(cx, cy, Math.max(4, r * 0.03) * pulse, 0, Math.PI * 2)
-          sctx.stroke()
-          sctx.fillStyle = '#fff'
-          sctx.beginPath()
-          sctx.arc(cx, cy, 2, 0, Math.PI * 2)
-          sctx.fill()
-          sctx.restore()
-        }
-        // height, so the climb reads while the scene's own HUD is fading out
-        sctx.save()
-        sctx.globalAlpha = dispT
-        sctx.fillStyle = 'rgba(255,255,255,0.9)'
-        sctx.font = '11px monospace'
-        sctx.textAlign = 'left'
-        sctx.fillText('ALT ' + Math.round(alt) + (alt >= 300 ? ' · IN SPACE' : ' · LEAVING THE ATMOSPHERE'), 14, 24)
-        sctx.restore()
-      }
+      // height, so the climb reads while the scene's own HUD is fading out
+      sctx.save()
+      sctx.globalAlpha = dispT
+      sctx.fillStyle = 'rgba(255,255,255,0.9)'
+      sctx.font = '11px monospace'
+      sctx.textAlign = 'left'
+      sctx.fillText('ALT ' + Math.round(alt) + (alt >= 300 ? ' · IN SPACE' : ' · LEAVING THE ATMOSPHERE'), 14, 24)
+      sctx.restore()
     }
 
     const layout = () => {
@@ -414,6 +306,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       if (view && !pad.view) {
         scene.toggleView()
         revealHintRef.current(scene.view, 7)
+        sound.whoosh()
       }
       const changed = turn !== pad.turn || climb !== pad.climb || thrust !== pad.thrust
       pad.turn = turn
@@ -441,6 +334,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       readPad()
       if (gyroRef && gyroRef.current && gyroRef.current.active) sendKeys()
       scene.step(dt)
+      sound.update({ speed: scene.speed, boost: scene.boost, altitude: scene.altitude })
       const bytes = scene.render()
       if (!image) image = new ImageData(bytes , scene.width, scene.height)
       ctx.putImageData(image, 0, 0)
@@ -489,6 +383,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         if (e.repeat) return
         scene.toggleView()
         revealHintRef.current(scene.view, 7)
+        sound.whoosh()
         return
       }
       if (FLY[e.code] && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -537,6 +432,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
   useEffect(() => {
     if (firstView.current) { firstView.current = false; return }
     revealHintRef.current(viewOf(params.view), 7)
+    sound.whoosh()
   }, [params.view])
 
   const toScene = (e) => {
@@ -566,6 +462,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
     if (!scene) return
     scene.toggleView()
     revealHint(scene.view, 7)
+    sound.whoosh()
     wrapRef.current?.focus({ preventScroll: true }) // so the keys still fly it after a click
   }
   const boostOn = (e) => {
@@ -605,6 +502,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         if (steerWithPointer) sceneRef.current?.pointerMove(x, y)
       },
       onPointerDown: (e) => {
+        sound.unlock() // audio needs a gesture; a tap here is one
         padLetGo()
         const [x, y] = toScene(e)
         if (byFinger(e)) {
@@ -640,7 +538,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         className: "absolute block" ,
         style: { imageRendering: 'pixelated' },}
       )
-      /* the space view: stars and the globe, over the picture */
+      /* the space view: stars and the height readout, over the picture */
       , _jsx('canvas', { ref: spaceRef, 'aria-hidden': "true", className: "pointer-events-none absolute block"  ,} )
       /* smooth flames are drawn here, over the picture */
       , _jsx('canvas', { ref: fireRef, 'aria-hidden': "true", className: "pointer-events-none absolute block"  ,} )

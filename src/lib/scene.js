@@ -629,7 +629,6 @@ export function createScene(initial) {
         }
       }
     }
-    worldVersion++
 }
 
   // ── state
@@ -659,7 +658,6 @@ export function createScene(initial) {
   let climbV = 0 // how fast it is climbing, px per second (smoothed)
   let climbTilt = 0 // the jet's climb angle, which the chase camera leans with
   let worldDirty = 0 // seconds until the world is rebuilt (waits for a slider to settle)
-  let worldVersion = 0 // increments whenever the world is rebuilt
   let reseat = false
   const cam = { x: 0, y: 0, yaw: 0, alt: p.altitude } // what the view is centred on (yaw: the overhead heading)
   const follow = { x: 0, y: 0, alt: p.altitude } // the same point as it trails the jet; the cockpit locks on instead
@@ -733,29 +731,6 @@ export function createScene(initial) {
   const flameSeen = new Float32Array(FLAME_MAX * 3).fill(1)
   const flameV = [0, 0, 0]
 
-
-  /** A top-down picture of the whole world tile, for the space view's globe:
-   *  one pixel per (N / size) world units, coloured like the scene's own terrain. */
-  function worldSnapshot(size = 256) {
-    const data = new Uint8ClampedArray(size * size * 4)
-    const step = N / size
-    for (let y = 0; y < size; y++) {
-      const gy = Math.min(N - 1, (y * step) | 0)
-      for (let x = 0; x < size; x++) {
-        const gx = Math.min(N - 1, (x * step) | 0)
-        const o = (gy << NSHIFT) | gx
-        const col = topLit[matMap[o]] || 0
-        // higher ground catches more light
-        const f = 0.72 + 0.45 * Math.min(1, heightMap[o] / ZTOP)
-        const idx = (y * size + x) * 4
-        data[idx] = Math.min(255, ((col & 255) * f) | 0)
-        data[idx + 1] = Math.min(255, (((col >> 8) & 255) * f) | 0)
-        data[idx + 2] = Math.min(255, (((col >> 16) & 255) * f) | 0)
-        data[idx + 3] = 255
-      }
-    }
-    return { size, data }
-  }
 
   /** 0..1: how far the cockpit has slid into place round the camera */
   function cockpitIn() {
@@ -2185,13 +2160,13 @@ export function createScene(initial) {
     render,
     get width() { return W },
     get height() { return H },
-    /** the jet's height above the ground, for the space transition */
+    /** the jet's height above the ground, for the dark-sky climb */
     get altitude() { return jets[0] ? jets[0].z : 0 },
-    /** the jet's ground position, so the globe's surface scrolls under it */
-    get jetPos() { const j = jets[0]; return j ? { x: j.x, y: j.y } : { x: 0, y: 0 } },
-    /** increments whenever the world is rebuilt */
-    get worldVersion() { return worldVersion },
-    worldSnapshot,
+    /** current airspeed, for the engine sound */
+    get speed() { return speedNow },
+    /** 0..1: how hard the thrusters are being pushed, for the thruster sound */
+    get boost() { return boost },
+    get thrusting() { return boost > 0.05 },
     /** the smooth flames to lay over this frame (none while the flames are drawn in pixels) */
     get flames() { return flameOut },
     /** the view the camera is in, or heading for */
