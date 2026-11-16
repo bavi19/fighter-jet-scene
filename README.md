@@ -42,19 +42,20 @@ The jet art is procedural: the voxel model is run-length encoded inside
   speed, boost, turn rate, bank, cruising altitude, ceiling, jet size, slice
   spacing, pixel size, cameras, time of day, islands, clouds, seed, flames,
   trails, shadow, jet colours. Saved in localStorage, with Reset defaults.
-- **Graphics quality (Low / Medium / High / Ultra)** — the scene
+- **Graphics quality (Low / Medium / High)** — the scene
   draws into a low-resolution pixel buffer that is scaled up, so pixel size
-  *is* the resolution: Low uses 6 px pixels with pixel flames (chunky retro,
-  lightest), Medium uses 3 px with smooth flames (the original as
-  published), High uses 2 px, Ultra uses 1 px — the screen's native
-  resolution, the sharpest the renderer can draw. (Very High at 1.5 px was
-  removed: it looked almost the same as High.) The panel shows the live
-  pixel-buffer size for the current choice. Ultra is heavy: on the slow build
-  machine it runs ~9 fps in the overhead view, so it is for fast desktops. The framing does not
-  change with the setting: the overhead view is scaled so Low frames exactly
-  the same area as Medium (only chunkier) — before this fix Low showed half
-  the world and a jet twice as big on screen. Small screens are also zoomed
-  out a little, so there is more room to play on a phone.
+  *is* the resolution: Low uses 3 px with smooth flames (the original as
+  published), Medium uses 2 px, High uses 1 px — the screen's native
+  resolution, the sharpest the renderer can draw. (The old 6 px chunky Low
+  was dropped, and the presets shifted up a step: Medium became Low, High
+  became Medium, Ultra became High. Very High at 1.5 px was removed
+  earlier: it looked almost the same as High.) The panel shows the live
+  pixel-buffer size for the current choice. High is heavy: on the slow build
+  machine it runs ~9 fps in the overhead view, so it is for fast desktops.
+  The framing does not change with the setting: the overhead view is scaled
+  so every setting frames exactly the same area — before this fix Low showed
+  half the world and a jet twice as big on screen. Small screens are also
+  zoomed out a little, so there is more room to play on a phone.
 - **Three planes** — Falcon (the original, balanced), Dart (narrow and
   long: faster, twitchier, lower ceiling) and Titan (wide and heavy: slow
   to turn, climbs the highest). Each is a different voxel model cut from

@@ -22,14 +22,14 @@ const LIVE_VALUES = {
 // Graphics quality: the renderer's real knobs. The scene draws into a low-res
 // pixel buffer that is scaled up, so pixel size IS the resolution: smaller
 // pixels = a bigger buffer = a crisper picture (and more work per frame).
-// Low 6px = chunky retro, Medium 3px = the original as published,
-// High 2px, Ultra 1px = the screen's native resolution. (Very High at 1.5px
-// was removed: it looked almost the same as High.)
+// Three presets, all with smooth flames. The old 6px chunky Low is gone:
+// Low is now the original as published (3px), Medium is the old High (2px),
+// High is the old Ultra (1px, the screen's native resolution). (Very High
+// at 1.5px was removed earlier: it looked almost the same as High.)
 const GRAPHICS_PRESETS = {
-  low: { label: 'Low', pixelSize: 6, flameStyle: 'pixel', desc: 'Chunky retro pixels, lightest on the device' },
-  medium: { label: 'Medium', pixelSize: 3, flameStyle: 'realistic', desc: 'The original as published' },
-  high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crisp, needs a faster device' },
-  ultra: { label: 'Ultra', pixelSize: 1, flameStyle: 'realistic', desc: 'Native resolution — the sharpest possible, needs a fast desktop' },
+  low: { label: 'Low', pixelSize: 3, flameStyle: 'realistic', desc: 'The original as published' },
+  medium: { label: 'Medium', pixelSize: 2, flameStyle: 'realistic', desc: 'Crisp, needs a faster device' },
+  high: { label: 'High', pixelSize: 1, flameStyle: 'realistic', desc: 'Native resolution — the sharpest possible, needs a fast desktop' },
 };
 
 // Planes: each is a different voxel model (cut from the original's slices) with its
