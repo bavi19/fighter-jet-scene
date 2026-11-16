@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1c33" />
+<title>Fighter Jet Scene — Free Flight</title>
+<meta name="description" content="A pixel-art fighter jet in free flight over a procedurally seeded ocean-and-islands world. Touch, gyro, mouse and GTA-style keyboard controls. Top, chase and cockpit views." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" aria-label="Fighter jet free-flight scene"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-left">
+        <div class="hud-row"><span class="hud-label">SPD</span><span id="hud-speed">0</span><span class="hud-unit">kt</span></div>
+        <div class="hud-row"><span class="hud-label">ALT</span><span id="hud-alt">0</span><span class="hud-unit">ft</span></div>
+        <div class="hud-row"><span class="hud-label">HDG</span><span id="hud-hdg">000°</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="hud-row"><span class="hud-label">DIST</span><span id="hud-dist">0.0</span><span class="hud-unit">nm</span></div>
+        <div class="hud-row"><span class="hud-label">TIME</span><span id="hud-time">00:00</span></div>
+        <div class="hud-row"><span class="hud-label">VIEW</span><span id="hud-view">TOP</span></div>
+      </div>
+      <div class="hud-buttons">
+        <button id="btn-view" type="button" title="Change camera view (Space)">📷 View</button>
+        <button id="btn-pause" type="button" title="Pause (P)">⏸ Pause</button>
+        <button id="btn-settings" type="button" title="Settings">⚙️</button>
+      </div>
+    </div>
+
+    <!-- Bottom hint bar (same wording as the original) -->
+    <div id="hint" class="hidden">MOVE TO STEER &nbsp;·&nbsp; CLICK TO ROLL &nbsp;·&nbsp; HOLD TO FIRE THE THRUSTERS &nbsp;·&nbsp; SPACE FOR CHASE VIEW</div>
+
+    <!-- Touch buttons (shown when touch mode + touch buttons on) -->
+    <div id="touch-ui" class="hidden">
+      <div class="touch-pad">
+        <button id="touch-left" type="button" aria-label="Turn left">◀</button>
+        <button id="touch-right" type="button" aria-label="Turn right">▶</button>
+      </div>
+      <div class="touch-actions">
+        <button id="touch-roll" type="button" aria-label="Roll">⟳ Roll</button>
+        <button id="touch-thrust" type="button" aria-label="Hold for thrusters">🔥 Thrust</button>
+      </div>
+    </div>
+
+    <!-- Gyro permission banner -->
+    <div id="gyro-bar" class="hidden">
+      <span>Gyro control needs motion access on this device.</span>
+      <button id="btn-gyro-enable" type="button">Enable motion</button>
+      <button id="btn-gyro-calibrate" type="button">Calibrate</button>
+      <span id="gyro-status"></span>
+    </div>
+
+    <!-- Start overlay -->
+    <div id="start-screen" class="overlay">
+      <div class="panel">
+        <div class="eyebrow">FREE FLIGHT · PIXEL ART</div>
+        <h1>Fighter Jet Scene</h1>
+        <p class="tagline">A fighter jet cruising over a seeded ocean-and-islands world. No enemies, no score — just fly. Graphics rebuilt crisper and cleaner, in the style of the red pixel plane.</p>
+
+        <div class="control-picker" role="group" aria-label="Choose controls">
+          <div class="picker-label">Choose your controls</div>
+          <div class="picker-buttons">
+            <button type="button" data-mode="touch" class="mode-btn">👆 Touch</button>
+            <button type="button" data-mode="gyro" class="mode-btn">📱 Gyro</button>
+            <button type="button" data-mode="mouse" class="mode-btn">🖱️ Mouse</button>
+            <button type="button" data-mode="keyboard" class="mode-btn">⌨️ Keyboard</button>
+          </div>
+          <p id="mode-help" class="mode-help"></p>
+        </div>
+
+        <button id="btn-fly" type="button" class="primary">▶&nbsp; Take off</button>
+        <button id="btn-start-settings" type="button" class="secondary">⚙️ Scene settings</button>
+        <p class="fine">Tip: Space cycles Top → Chase → Cockpit. Click / Q / E rolls. Hold mouse, Shift, or Thrust for afterburner.</p>
+      </div>
+    </div>
+
+    <!-- Pause overlay -->
+    <div id="pause-screen" class="overlay hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <p class="tagline">The jet is holding its heading. Take a breath.</p>
+        <button id="btn-resume" type="button" class="primary">▶&nbsp; Resume</button>
+        <button id="btn-restart" type="button" class="secondary">↺ Restart flight</button>
+        <button id="btn-quit" type="button" class="secondary">✈️ Back to menu</button>
+      </div>
+    </div>
+
+    <!-- Settings panel -->
+    <div id="settings-screen" class="overlay hidden">
+      <div class="panel settings-panel">
+        <h2>Scene settings</h2>
+        <p class="tagline">Same parameters as the original Forge scene — tune them live.</p>
+        <div class="settings-grid">
+          <label>Speed <span class="val" id="val-speed"></span><input id="set-speed" type="range" min="40" max="160" step="1" /></label>
+          <label>Turn rate <span class="val" id="val-turn"></span><input id="set-turn" type="range" min="0.5" max="2.5" step="0.05" /></label>
+          <label>Bank angle <span class="val" id="val-bank"></span><input id="set-bank" type="range" min="20" max="75" step="1" /></label>
+          <label>Cruising altitude <span class="val" id="val-cruise"></span><input id="set-cruise" type="range" min="40" max="220" step="5" /></label>
+          <label>Ceiling <span class="val" id="val-ceiling"></span><input id="set-ceiling" type="range" min="150" max="500" step="10" /></label>
+          <label>Islands <span class="val" id="val-islands"></span><input id="set-islands" type="range" min="0" max="0.7" step="0.01" /></label>
+          <label>Clouds <span class="val" id="val-clouds"></span><input id="set-clouds" type="range" min="0" max="0.8" step="0.01" /></label>
+          <label>World seed <span class="val" id="val-seed"></span>
+            <span class="seed-row"><input id="set-seed" type="number" min="1" max="9999" step="1" /><button id="btn-random-seed" type="button">🎲</button></span>
+          </label>
+          <label>Time of day
+            <select id="set-tod">
+              <option value="day">Day</option>
+              <option value="sunset">Sunset</option>
+              <option value="night">Night</option>
+            </select>
+          </label>
+          <label>Jet body <input id="set-body" type="color" /></label>
+          <label>Jet accent <input id="set-accent" type="color" /></label>
+          <label>Jet canopy <input id="set-canopy" type="color" /></label>
+        </div>
+        <div class="toggles">
+          <label class="toggle"><input id="set-trails" type="checkbox" /> Wingtip trails</label>
+          <label class="toggle"><input id="set-shadow" type="checkbox" /> Jet shadow</label>
+          <label class="toggle"><input id="set-helper" type="checkbox" /> How-to-fly helper line</label>
+          <label class="toggle"><input id="set-autoroll" type="checkbox" /> Rolls on autopilot</label>
+          <label class="toggle"><input id="set-touchbtn" type="checkbox" /> Touch buttons (mobile)</label>
+          <label class="toggle"><input id="set-invert" type="checkbox" /> Invert pitch (pull up to climb)</label>
+        </div>
+        <div class="settings-actions">
+          <button id="btn-settings-done" type="button" class="primary">Done</button>
+          <button id="btn-settings-reset" type="button" class="secondary">Reset defaults</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
