@@ -378,8 +378,8 @@ function App() {
           h('button', { onClick: () => setShowSettings(true), style: btnStyle }, 'Scene settings')),
         h('p', { style: { margin: '14px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 } },
           gameMode === 'mission'
-            ? 'Space cycles Top → Chase → Cockpit · Click to roll · Hold for the thrusters · Right-click fires the cannon · M fires a missile · Dive into the ground to eject · T runs the tutorial'
-            : 'Space cycles Top → Chase → Cockpit · Click to roll · Hold for the thrusters'))),
+            ? 'V cycles Top → Chase → Cockpit · Click to roll · Hold for the thrusters · Right-click fires the cannon · Space fires a missile · Dive into the ground to eject · T runs the tutorial'
+            : 'V cycles Top → Chase → Cockpit · Click to roll · Hold for the thrusters'))),
 
     showSettings && h('div', {
       style: { position: 'absolute', inset: 0, zIndex: 50, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.35)' },

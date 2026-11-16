@@ -133,7 +133,7 @@ The jet art is procedural: the voxel model is run-length encoded inside
 
 ## Controls (original)
 
-- **Space** — cycle Top → Chase → Cockpit
+- **V** — cycle Top → Chase → Cockpit
 - **Arrows / WASD** — fly (down climbs, up dives, like a flight stick)
 - **Shift** — fire the thrusters
 - **Click / tap** — roll
@@ -144,7 +144,7 @@ The jet art is procedural: the voxel model is run-length encoded inside
 ## Controls (Mission Mode only)
 
 - **Right-click (hold) / Square / Gun button** — fire the cannon
-- **M / Circle / Missile button** — fire a missile (at the locked target,
+- **Space (or M) / Circle / Missile button** — fire a missile (at the locked target,
   or dumb); in the counter window after a dodge, one press fires three
 - **F / G / L1 / R1 / Loop button** — loop back over the top / forward and under
 - **I** — Intel (the controls list; pauses the game), **T** — the tutorial

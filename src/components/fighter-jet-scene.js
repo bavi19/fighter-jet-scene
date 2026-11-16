@@ -36,13 +36,13 @@ const hintFor = (view, input, stick) => {
     return `${steer} · Tap to roll · Hold Boost for the thrusters · View for ${next}`
   }
   if (input === 'keyboard') {
-    return `Arrows or WASD to fly · Shift for the thrusters · Click to roll · Space for ${next}`
+    return `Arrows or WASD to fly · Shift for the thrusters · Click to roll · V for ${next}`
   }
   const fingers = input === 'touch'
   const steer = view === 'top' ? `${fingers ? 'Touch' : 'Move'} to steer` : `${fingers ? 'Touch' : 'Point'} to turn · ${upDown}`
   return fingers
     ? `${steer} · Tap to roll · Hold Boost for the thrusters · View for ${next}`
-    : `${steer} · Click to roll · Hold to fire the thrusters · Space for ${next}`
+    : `${steer} · Click to roll · Hold to fire the thrusters · V for ${next}`
 }
 const viewOf = (v) => (v === 'cockpit' ? 'cockpit' : v === 'chase' ? 'chase' : 'top')
 
@@ -352,7 +352,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
     }
     raf = requestAnimationFrame(frame)
 
-    // Space moves the camera on: overhead → behind the jet → cockpit → overhead;
+    // V moves the camera on: overhead → behind the jet → cockpit → overhead;
     // arrows or WASD fly it, Shift fires the thrusters
     const held = heldRef.current
     held.clear()
@@ -378,8 +378,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
     const onKey = (e) => {
       if (typing(e)) return
       padLetGoRef.current()
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault()
+      if (e.code === 'KeyV' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.repeat) return
         scene.toggleView()
         revealHintRef.current(scene.view, 7)
@@ -533,7 +532,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
  children: [
       _jsx('canvas', {
         ref: canvasRef,
-        'aria-label': "A pixel-art fighter jet, built from stacked slices, flying over islands. Space moves between the overhead view, the view from behind the jet and the cockpit; arrow keys fly it and Shift fires the thrusters. A game controller works too."                                       ,
+        'aria-label': "A pixel-art fighter jet, built from stacked slices, flying over islands. V moves between the overhead view, the view from behind the jet and the cockpit; arrow keys fly it and Shift fires the thrusters. A game controller works too."                                       ,
         role: "img",
         className: "absolute block" ,
         style: { imageRendering: 'pixelated' },}

@@ -57,7 +57,7 @@ const lessonsFor = (input, o) => {
           ['Turn', 'Pointer, or A D / ← →'],
           ['Climb / dive', o.stick ? 'Pointer below the jet climbs, above dives (S / W)' : 'Pointer above the jet climbs, below dives (W / S)'],
           ['Thrusters', 'Hold left mouse, or Shift'],
-          ['Change view', 'Space'],
+          ['Change view', 'V'],
         ]
   const tricks = [
     ['Roll', pad ? (ps ? '✕' : 'A') : touch ? 'Tap' : 'Click'],
@@ -69,7 +69,7 @@ const lessonsFor = (input, o) => {
   const fight = [
     ['Cannon', pad ? (ps ? 'Hold □' : 'Hold X') : touch ? 'Hold Gun' : 'Hold right mouse'],
     ['Lock on', 'Keep an enemy ahead until the box turns red'],
-    ['Missile', pad ? (ps ? '○' : 'B') : touch ? 'Missile' : 'M'],
+    ['Missile', pad ? (ps ? '○' : 'B') : touch ? 'Missile' : 'Space (or M)'],
   ]
   if (o.hunted) {
     fight.push(['Dodge a missile', 'Roll as the two rings meet'])
@@ -203,7 +203,7 @@ export default function FighterJetEject({ pixelSize = 0, showHint = true, touchC
       t.setFlyer(flyerNow())
       t.start({ armed: paramsRef.current.weapons, crash: paramsRef.current.crash })
     } else t.stop()
-    wrapRef.current?.focus({ preventScroll: true }) // (so that Space is the view again, not this button)
+    wrapRef.current?.focus({ preventScroll: true }) // (so that V is the view again, not this button)
   }
   const runTutorialRef = useRef(runTutorial)
   runTutorialRef.current = runTutorial
@@ -526,7 +526,7 @@ export default function FighterJetEject({ pixelSize = 0, showHint = true, touchC
     }
     raf = requestAnimationFrame(frame)
 
-    // Space moves the camera on: overhead → behind the jet → cockpit → overhead;
+    // V moves the camera on: overhead → behind the jet → cockpit → overhead;
     // arrows or WASD fly it, Shift fires the thrusters
     const held = heldRef.current
     held.clear()
@@ -574,9 +574,14 @@ export default function FighterJetEject({ pixelSize = 0, showHint = true, touchC
         tutor.skip()
         return
       }
-      if (e.code === 'Space' || e.key === ' ') {
+      // Space fires a missile (M does too): held, they go one after another
+      if ((e.code === 'Space' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
-        if (e.repeat) return
+        scene.missile()
+        return
+      }
+      // V moves the camera on: overhead → behind the jet → cockpit → overhead
+      if (e.code === 'KeyV' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
         scene.toggleView()
         return
       }
@@ -777,7 +782,7 @@ export default function FighterJetEject({ pixelSize = 0, showHint = true, touchC
  children: [
       _jsx('canvas', {
         ref: canvasRef,
-        'aria-label': "A pixel-art fighter jet, built from stacked slices, flying over islands. Space moves between the overhead view, the view from behind the jet and the cockpit; arrow keys fly it, Shift fires the thrusters, F and G fly a loop back or forward, the right mouse button fires the cannon and M a missile. A game controller works too. Diving into the ground crashes the jet: the pilot ejects and a new jet picks him up."                                                                           ,
+        'aria-label': "A pixel-art fighter jet, built from stacked slices, flying over islands. V moves between the overhead view, the view from behind the jet and the cockpit; arrow keys fly it, Shift fires the thrusters, F and G fly a loop back or forward, the right mouse button fires the cannon and Space (or M) a missile. A game controller works too. Diving into the ground crashes the jet: the pilot ejects and a new jet picks him up."                                                                           ,
         role: "img",
         className: "absolute block" ,
         style: { imageRendering: 'pixelated' },}

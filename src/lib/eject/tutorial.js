@@ -50,7 +50,7 @@ export function lessonWords(id, flyer, stick, view) {
   const climbKey = stick ? 'S' : 'W'
   const diveKey = stick ? 'W' : 'S'
   const rollWith = pad ? (ps ? 'press ✕' : 'press A') : touch ? 'tap' : 'click'
-  const missileWith = pad ? (ps ? 'press ○' : 'press B') : touch ? 'tap Missile' : 'press M'
+  const missileWith = pad ? (ps ? 'press ○' : 'press B') : touch ? 'tap Missile' : 'press Space'
   switch (id) {
     case 'turn':
       return {
@@ -81,7 +81,7 @@ export function lessonWords(id, flyer, stick, view) {
     case 'view':
       return {
         title: 'Change view',
-        how: `${pad ? `Press ${ps ? '△' : 'Y'}.` : touch ? 'Tap View.' : 'Press Space.'} Overhead, chase, cockpit: each press is the next.`,
+        how: `${pad ? `Press ${ps ? '△' : 'Y'}.` : touch ? 'Tap View.' : 'Press V.'} Overhead, chase, cockpit: each press is the next.`,
       }
     case 'roll':
       return { title: 'Roll', how: pad ? `Press ${ps ? '✕' : 'A'}.` : touch ? 'Tap the sky.' : 'Click once.' }
