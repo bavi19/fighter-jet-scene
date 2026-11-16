@@ -22,11 +22,13 @@ const LIVE_VALUES = {
 // pixel buffer that is scaled up, so pixel size IS the resolution: smaller
 // pixels = a bigger buffer = a crisper picture (and more work per frame).
 // Low 6px = chunky retro, Medium 3px = the original as published,
-// High 2px = crispest the software renderer comfortably holds.
+// High 2px, Very High 1.5px, Ultra 1px = the screen's native resolution.
 const GRAPHICS_PRESETS = {
   low: { label: 'Low', pixelSize: 6, flameStyle: 'pixel', desc: 'Chunky retro pixels, lightest on the device' },
   medium: { label: 'Medium', pixelSize: 3, flameStyle: 'realistic', desc: 'The original as published' },
-  high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crispest picture, needs a faster device' },
+  high: { label: 'High', pixelSize: 2, flameStyle: 'realistic', desc: 'Crisp, needs a faster device' },
+  veryHigh: { label: 'Very High', pixelSize: 1.5, flameStyle: 'realistic', desc: 'Near-native sharpness, heavy' },
+  ultra: { label: 'Ultra', pixelSize: 1, flameStyle: 'realistic', desc: 'Native resolution — the sharpest possible, needs a fast desktop' },
 };
 
 // Planes: each is a different voxel model (cut from the original's slices) with its
@@ -70,7 +72,7 @@ const SECTIONS = [
   { title: 'Sprite stack', controls: [
     { prop: 'jetScale', label: 'Jet size', min: 0.6, max: 1.6, step: 0.05 },
     { prop: 'spread', label: 'Slice spacing', min: 1, max: 7, step: 0.1 },
-    { prop: 'pixelSize', label: 'Pixel size (0 = auto)', min: 0, max: 12, step: 1 },
+    { prop: 'pixelSize', label: 'Pixel size (0 = auto)', min: 0, max: 12, step: 0.5 },
   ] },
   { title: 'Camera', controls: [
     { prop: 'transition', label: 'View change (seconds)', min: 0.4, max: 4, step: 0.1 },
@@ -316,12 +318,12 @@ function App() {
           h('button', { onClick: () => setShowSettings(false), style: { ...btnStyle, padding: '6px 10px' } }, '✕')),
         h('p', { style: { fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px', lineHeight: 1.5 } }, 'The original scene’s parameters — tune them live.'),
         h('div', { style: { fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 8 } }, 'Graphics'),
-        h('div', { style: { display: 'flex', gap: 6, marginBottom: 6 } },
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 } },
           Object.keys(GRAPHICS_PRESETS).map((k) =>
             h('button', {
               key: k, onClick: () => applyGraphics(k),
               style: {
-                ...btnStyle, flex: 1, padding: '9px 4px', fontSize: 12,
+                ...btnStyle, flex: 1, minWidth: 80, padding: '9px 4px', fontSize: 12,
                 borderColor: activeGraphics === k ? '#f0580e' : 'rgba(255,255,255,0.3)',
                 background: activeGraphics === k ? 'rgba(240,88,14,0.25)' : 'rgba(11,26,51,0.6)',
               },
