@@ -278,6 +278,19 @@ export default function FighterJetEject({ pixelSize = 0, showHint = true, touchC
       if (view === 'top') {
         sctx.fillStyle = 'rgba(2,4,12,' + spaceT.toFixed(3) + ')'
         sctx.fillRect(0, 0, cw, ch)
+        // the veil would swallow the jet too: clear a soft patch of sky around it, so the
+        // sunlit plane stays readable while the rest of the sky stays black (the jet sits
+        // at the centre of the overhead view, so the patch sits there too)
+        const jr = Math.min(cw, ch) * 0.11 + 30
+        const hg = sctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, jr)
+        hg.addColorStop(0, 'rgba(2,4,12,' + spaceT.toFixed(3) + ')')
+        hg.addColorStop(0.55, 'rgba(2,4,12,' + spaceT.toFixed(3) + ')')
+        hg.addColorStop(1, 'rgba(2,4,12,0)')
+        sctx.save()
+        sctx.globalCompositeOperation = 'destination-out'
+        sctx.fillStyle = hg
+        sctx.fillRect(cw / 2 - jr, ch / 2 - jr, jr * 2, jr * 2)
+        sctx.restore()
       } else if (view === 'chase') {
         const g = sctx.createLinearGradient(0, 0, 0, ch * 0.6)
         g.addColorStop(0, 'rgba(2,4,12,' + (spaceT * 0.75).toFixed(3) + ')')

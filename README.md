@@ -116,7 +116,11 @@ The jet art is procedural: the voxel model is run-length encoded inside
   stars and the height readout are left. (An earlier globe — the ground
   turning into a ball — was tried twice and dropped at the user's request:
   a dark sky is enough.) The Titan's ceiling (520) takes you deepest; the
-  Falcon (300) just reaches full space.
+  Falcon (300) just reaches full space. Up there the jet itself is lit by
+  the sun above the atmosphere — its colours lighten as it climbs, and a
+  soft patch of sky is kept clear around it — so the plane stays readable
+  against the black instead of vanishing into it with only its flames
+  showing.
 - **Sound effects** — Free Fly's are synthesized with Web Audio, no audio
   files: a low engine hum that rises with speed and boost, wind that grows
   with speed and height, a thruster roar while the afterburners are open, a

@@ -547,6 +547,9 @@ export function createScene(initial) {
   let sunX = 0.45
   let sunY = 0.3
 
+  let spaceT = 0 // how far into space the jet is, smoothed — the sun above the atmosphere lights it up
+  let palSpaceT = -1 // the space amount the jet palettes were last built for
+
   function rebuildPalettes() {
     const tod = p.timeOfDay
     // jet: recolour each family from its key tone
@@ -582,6 +585,12 @@ export function createScene(initial) {
             }
           }
           c = grade(c, tod, jetAmount)
+          // up in space the sky goes black: mix the jet's colours toward white as it climbs,
+          // so the plane stays readable against the dark instead of vanishing into it
+          if (spaceT > 0) {
+            const m = spaceT * 0.55
+            c = [c[0] + (255 - c[0]) * m, c[1] + (255 - c[1]) * m, c[2] + (255 - c[2]) * m]
+          }
         }
         pal[idx] = pack(c[0], c[1], c[2])
       }
@@ -3646,6 +3655,11 @@ export function createScene(initial) {
     const raw = chaseYaw - cam.yaw
     if (vC === 0 && vK === 0) yawDiff = wrapAngle(raw)
     else yawDiff += wrapAngle(raw - yawDiff)
+    // the higher it flies, the more the sun lights it up: rebuild the jet palettes as the space
+    // amount moves, so the plane stays visible once the sky has gone black
+    const altNow = jets[0] ? jets[0].z : 0
+    spaceT += (clamp((altNow - 120) / 180, 0, 1) - spaceT) * (1 - Math.exp(-dt * 2))
+    if (Math.abs(spaceT - palSpaceT) > 0.01) { palSpaceT = spaceT; rebuildPalettes() }
     updateView()
   }
 
