@@ -1,9 +1,35 @@
 # Fighter Jet Scene
 
 A pixel-art fighter jet in continuous free flight over a procedurally seeded
-ocean-and-islands world. No enemies, no score — just fly.
+ocean-and-islands world — now with a Mission Mode: enemy jets, cannon and
+missiles, ejection and rescue.
 
 **Live:** https://fighter-jet-scene.vercel.app
+
+## Two games, one world
+
+The start screen asks which game to play:
+
+- **Free Fly** — the original Forge scene as it is. No enemies, no score.
+  Just fly.
+- **Mission Mode** — the fighterv2 remix, ported the same way (see below):
+  enemy jets hunt you, the cannon (right-click / Square / Gun button) and
+  missiles (M / Circle / Missile button) answer back, lock-on brackets close
+  in when one is ahead of you, and a roll at the last half-second throws an
+  inbound missile off in slow motion — fire one back in that window for a
+  triple counter. Hull is 6 hits; it regens if you are left alone. Go down
+  (or dive into the ground on purpose) and you eject: the canopy pops, the
+  seat fires, the parachute opens, and a new jet flies in and picks you up
+  — radio chatter and all. Kills are the score, and they reset every time
+  you are shot down. There is no win condition and no game-over screen;
+  the rescue is the restart, in about three or four seconds. **T** runs a
+  14-step tutorial flight (fly, tricks, fight, bail out); **I** opens the
+  controls list and pauses the game. Mission Mode has its own settings too
+  — Combat (ammo, missiles, reload, enemies, dodge slow-mo), Look (glow,
+  colour, corners, grain), ejection close-up, explosion flash and shake,
+  wake and cloud-cutting — all in the settings panel, only when Mission
+  Mode is picked. The planes, graphics presets, control modes and the dark
+  sky at altitude all work in Mission Mode exactly as in Free Fly.
 
 ## Origin — the original code, not a rewrite
 
@@ -23,10 +49,32 @@ base, with only the small additions listed below:
 - `original/` — the unmodified source files exactly as served by the Forge
   preview, kept for reference
 
+The Mission Mode is a port of the same author's remix,
+["fighter remix"](https://forge.ui8.ai/share/frag_f7618fc4-1958-48a9-bbb8-1c09ecb33736)
+(entry `fighter-jet-eject`), recovered the same way:
+
+- `src/components/fighter-jet-eject.js` — the remix's component (was
+  `src/components/fighter-jet-eject.tsx`)
+- `src/lib/eject/scene.js` + `src/lib/eject/tutorial.js` — its mission
+  engine and tutorial (was `src/lib/eject/scene.ts` / `tutorial.ts`)
+- `src/lib/post.js`, `src/lib/pilot-model.js`, `src/lib/voxel-sprite.js` —
+  its post-processing, pilot/seat voxel models and voxel painter
+- `src/lib/mission-sound.js` + `assets/sounds/*.mp3` — its sound engine
+  and 30 recorded sounds (engine, guns, missiles, explosions, radio
+  chatter). The import lines are rewritten to plain `/assets/sounds/…`
+  URLs, since there is no bundler; the sounds are served from the site
+  root, as the project is a plain static site (no framework `public/`
+  folder).
+- `original/v2/` — the remix's unmodified source, kept for reference
+
 The only changes to the original files are mechanical: `.ts`/`.tsx` renamed
-to `.js` with import paths fixed (the served files are already plain JS), and
-three small, clearly marked additions in the component for the control modes
-below (`gyroRef`, `steerWithPointer`, `inputKind`).
+to `.js` with import paths fixed (the served files are already plain JS),
+plus the clearly marked additions shared with Free Fly: the control modes
+(`gyroRef`, `steerWithPointer`, `inputKind`), the dark sky at altitude, the
+framing fix (`viewScale`), the three planes (`model` + `MODELS`, now in both
+scenes), and one fixed bug in the remix — its scene queues a `release`
+sound when a missile leaves the rail, but its sound table had no entry for
+it, so it played nothing; `release` now reuses the swish recording.
 
 The jet art is procedural: the voxel model is run-length encoded inside
 `src/lib/jet-model.js` — no image assets are needed.
@@ -69,13 +117,17 @@ The jet art is procedural: the voxel model is run-length encoded inside
   turning into a ball — was tried twice and dropped at the user's request:
   a dark sky is enough.) The Titan's ceiling (520) takes you deepest; the
   Falcon (300) just reaches full space.
-- **Sound effects** — synthesized with Web Audio, no audio files: a low
-  engine hum that rises with speed and boost, wind that grows with speed
-  and height, a thruster roar while the afterburners are open, a spool-up
-  sweep on take-off, a whoosh when the view changes, and a soft click when
-  a graphics preset or a plane is picked. Audio starts on the Take off tap
-  (browsers need a gesture); a Sound toggle in the settings panel mutes it,
-  remembered between visits.
+- **Sound effects** — Free Fly's are synthesized with Web Audio, no audio
+  files: a low engine hum that rises with speed and boost, wind that grows
+  with speed and height, a thruster roar while the afterburners are open, a
+  spool-up sweep on take-off, a whoosh when the view changes, and a soft
+  click when a graphics preset or a plane is picked. Mission Mode uses the
+  remix's own recorded sounds instead (30 MP3s, ~1 MB, fetched lazily on
+  the first click): engine, afterburner, wind, dive alarm, cannon, missiles,
+  explosions, parachute, and radio chatter during a rescue. Audio starts on
+  the Take off tap (browsers need a gesture); one Sound toggle in the
+  settings panel mutes either system, remembered between visits. Mission
+  Mode adds a Volume slider and a Radio chatter toggle in the same panel.
 - **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
   and desktop; the pixel buffer resizes with the window.
 
@@ -88,6 +140,14 @@ The jet art is procedural: the voxel model is run-length encoded inside
 - **Hold** — thrusters (mouse hold / Boost button on touch)
 - **Gamepad** — left stick to fly, Cross to roll, R2 for thrusters,
   Triangle to change view
+
+## Controls (Mission Mode only)
+
+- **Right-click (hold) / Square / Gun button** — fire the cannon
+- **M / Circle / Missile button** — fire a missile (at the locked target,
+  or dumb); in the counter window after a dodge, one press fires three
+- **F / G / L1 / R1 / Loop button** — loop back over the top / forward and under
+- **I** — Intel (the controls list; pauses the game), **T** — the tutorial
 
 ## Run it
 
