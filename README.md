@@ -63,12 +63,18 @@ The jet art is procedural: the voxel model is run-length encoded inside
   in settings; tuning the Flight sliders afterwards makes it a custom mix.
 - **Leaving the atmosphere** — climb (Cruising altitude and Ceiling now
   reach 900) and the sky darkens to space from about altitude 120: stars
-  fade in, and in the overhead view the ground itself curves away into a
-  globe — the same world tile, centred under the jet, shrinking into a
-  ball with an atmosphere rim as you rise, then receding as you keep
-  climbing. At full space the flat ground is gone entirely: only the globe
-  and the stars are left. The Titan's ceiling (520) takes you deepest;
-  the Falcon (300) just reaches full space.
+  fade in, and in the overhead view the flat ground itself becomes the
+  globe. The disc starts as the whole flat view — the live picture, at its
+  own scale, so the terrain matches exactly — and shrinks into a ball as
+  you rise; only once it is a ball does it crossfade to the whole-planet
+  picture, with limb shading and an atmosphere rim growing in as it does.
+  The transition is eased (a smoothed space amount, and a separate one for
+  the globe itself), so switching to the overhead view while already high
+  eases the globe in over a couple of seconds instead of dropping it on
+  screen, and descending flattens the globe back into land. At full space
+  the flat ground is gone entirely: only the globe and the stars are left,
+  the globe receding as you keep climbing. The Titan's ceiling (520) takes
+  you deepest; the Falcon (300) just reaches full space.
 - **Responsive** — fills the viewport (`100dvh`, safe-area aware) on mobile
   and desktop; the pixel buffer resizes with the window.
 
