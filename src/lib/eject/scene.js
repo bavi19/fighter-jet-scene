@@ -8,7 +8,8 @@
 // Two views share one camera: the overhead sprite-stack view, and a chase view from behind
 // the jet. The camera slides between them, so the switch is a single continuous move.
 
-import { drawOrbit, orbitOpacity } from '../orbit.js'
+import { createPlanetAim, drawOrbit, orbitOpacity, placePlanetViewsOnScreen } from '../orbit.js'
+import { createPlanetRoute, isOrbitDescentPointer, marsTerrain, MIN_FLIGHT_CEILING, TRANSIT_ALTITUDE } from '../planet-route.js'
 import { JET_PALETTE, MODELS } from '../jet-model.js'
 import { PILOT_W, PILOT_L, PILOT_H, PILOT_PIVOT, PILOT_SILL, PILOT_RISER, PILOT_SEAT_BASE, decodePilot } from '../pilot-model.js'
 import { createVoxelPainter, shellOf } from '../voxel-sprite.js'
@@ -82,7 +83,7 @@ export const DEFAULT_PARAMS = {
   boost: 1.8,
   agility: 1.25,
   altitude: 64,
-  ceiling: 300,
+  ceiling: 360,
   clearance: 7,
   bank: 52,
   spread: 1,
@@ -548,6 +549,11 @@ export function createScene(initial) {
   let sunX = 0.45
   let sunY = 0.3
 
+  const planetRoute = createPlanetRoute()
+  const aimAtPlanet = createPlanetAim()
+  let planetGlobeViews = []
+  let planetAim = null
+  let orbitPointerMoved = false
   let spaceT = 0 // how far into space the jet is, smoothed — the sun above the atmosphere lights it up
   let palSpaceT = -1 // the space amount the jet palettes were last built for
 
@@ -603,15 +609,17 @@ export function createScene(initial) {
       }
     }
     paint(jetPal, jetPalLit, jetPalDim, [keys[0].col, keys[1].col, keys[2].col])
-    paint(foePal, foePalLit, foePalDim, [[136, 58, 50], [246, 206, 64], [46, 44, 56]])
+    paint(foePal, foePalLit, foePalDim, planetRoute.mars
+      ? [[63, 42, 103], [96, 252, 112], [180, 231, 87]]
+      : [[136, 58, 50], [246, 206, 64], [46, 44, 56]])
     cockpit = null // repainted in the new colours shortly
     cockpitDue = 0.3
     const oc = tod === 'night' ? [44, 64, 118] : grade([13, 15, 26], tod, 0.3)
     outlineCol = pack(oc[0], oc[1], oc[2])
     // world
     for (let m = 0; m < NMAT; m++) {
-      const t = grade(MAT_TOP[m], tod, 1)
-      const s = grade(MAT_SIDE[m], tod, 1)
+      const t = grade(planetRoute.mars ? marsTerrain(m) : MAT_TOP[m], tod, 1)
+      const s = grade(planetRoute.mars ? marsTerrain(m, true) : MAT_SIDE[m], tod, 1)
       topLit[m] = pack(t[0], t[1], t[2])
       sideLit[m] = pack(s[0], s[1], s[2])
       topShade[m] = pack(t[0] * 0.62, t[1] * 0.67, t[2] * 0.8)
@@ -621,8 +629,8 @@ export function createScene(initial) {
       const f = k / (CK - 1)
       const ft = Math.min(1, k / 2)
       const ca = tod === 'night' ? 0.72 : 1
-      const t = grade([218 + 37 * ft, 230 + 25 * ft, 247 + 8 * ft], tod, ca)
-      const s = grade([158 + 44 * f, 182 + 36 * f, 222 + 18 * f], tod, ca)
+      const t = grade(planetRoute.mars ? [193 + 33 * ft, 128 + 33 * ft, 102 + 26 * ft] : [218 + 37 * ft, 230 + 25 * ft, 247 + 8 * ft], tod, ca)
+      const s = grade(planetRoute.mars ? [148 + 42 * f, 78 + 42 * f, 66 + 32 * f] : [158 + 44 * f, 182 + 36 * f, 222 + 18 * f], tod, ca)
       cloudTop[k] = pack(t[0], t[1], t[2])
       cloudSide[k] = pack(s[0], s[1], s[2])
     }
@@ -637,9 +645,9 @@ export function createScene(initial) {
     const tr = [grade([255, 255, 255], tod, 0.8), grade([214, 232, 250], tod, 0.8), grade([170, 204, 240], tod, 0.8)]
     for (let i = 0; i < 3; i++) trailPal[i] = pack(tr[i][0], tr[i][1], tr[i][2])
     // sky: from the horizon up
-    const skyA = tod === 'sunset' ? [255, 198, 132] : tod === 'night' ? [36, 56, 110] : [198, 232, 250]
-    const skyM = tod === 'sunset' ? [238, 122, 130] : tod === 'night' ? [18, 28, 70] : [122, 190, 240]
-    const skyB = tod === 'sunset' ? [84, 68, 150] : tod === 'night' ? [7, 10, 34] : [62, 142, 222]
+    const skyA = planetRoute.mars ? grade([226, 159, 123], tod, 0.8) : tod === 'sunset' ? [255, 198, 132] : tod === 'night' ? [36, 56, 110] : [198, 232, 250]
+    const skyM = planetRoute.mars ? grade([176, 101, 83], tod, 0.8) : tod === 'sunset' ? [238, 122, 130] : tod === 'night' ? [18, 28, 70] : [122, 190, 240]
+    const skyB = planetRoute.mars ? grade([114, 60, 69], tod, 0.8) : tod === 'sunset' ? [84, 68, 150] : tod === 'night' ? [7, 10, 34] : [62, 142, 222]
     for (let i = 0; i < NSKY; i++) {
       const f = i / (NSKY - 1)
       const a = f < 0.5 ? skyA : skyM
@@ -647,9 +655,9 @@ export function createScene(initial) {
       const g = f < 0.5 ? f * 2 : f * 2 - 1
       skyPal[i] = pack(a[0] + (b[0] - a[0]) * g, a[1] + (b[1] - a[1]) * g, a[2] + (b[2] - a[2]) * g)
     }
-    const hz = tod === 'sunset' ? [250, 182, 134] : tod === 'night' ? [28, 44, 92] : [188, 224, 246]
+    const hz = planetRoute.mars ? grade([206, 133, 102], tod, 0.8) : tod === 'sunset' ? [250, 182, 134] : tod === 'night' ? [28, 44, 92] : [188, 224, 246]
     hazeCol = pack(hz[0], hz[1], hz[2])
-    const cu = grade([138, 160, 200], tod, tod === 'night' ? 0.72 : 1)
+    const cu = grade(planetRoute.mars ? [139, 77, 61] : [138, 160, 200], tod, tod === 'night' ? 0.72 : 1)
     cloudUnder = pack(cu[0], cu[1], cu[2])
     const sc2 = tod === 'night' ? [232, 238, 255] : [255, 244, 200]
     const sg = tod === 'night' ? [70, 96, 160] : [255, 222, 150]
@@ -682,7 +690,7 @@ export function createScene(initial) {
   let spawnY = N / 2
 
   function buildWorld() {
-    const rnd = mulberry32((p.seed | 0) * 7919 + 13)
+    const rnd = mulberry32((p.seed | 0) * 7919 + (planetRoute.mars ? 4523 : 13))
     for (let i = 0; i < nz.length; i++) nz[i] = (rnd() * 256) | 0
 
     const E = new Float32Array(N * N)
@@ -744,7 +752,7 @@ export function createScene(initial) {
 
     // forests: little cones of leaves
     const STEP = 5
-    for (let gy = 0; gy < N; gy += STEP) {
+    for (let gy = 0; !planetRoute.mars && gy < N; gy += STEP) {
       for (let gx = 0; gx < N; gx += STEP) {
         const hs = hash8(gy * 977 + gx * 131 + 7)
         const cx = (gx + (hs & 3)) & NM
@@ -1316,6 +1324,7 @@ export function createScene(initial) {
   }
 
   function pointerMove(x, y) {
+    if (planetRoute.orbit && Math.hypot(x - pointerX, y - pointerY) > 2) orbitPointerMoved = true
     keyMode = false
     pointerOn = true
     pointerX = x
@@ -1704,7 +1713,7 @@ export function createScene(initial) {
     f.vz = 0
   }
   function syncFoes() {
-    const want = drill === 'calm' ? 0 : drill ? 1 : clamp(Math.round(p.enemies), 0, FOE_MAX)
+    const want = planetRoute.inSpace || drill === 'calm' ? 0 : drill ? 1 : clamp(Math.round(p.enemies), 0, FOE_MAX)
     while (foes.length < want) {
       const j = makeJet(0, 0, 0, 0)
       j.foe = true
@@ -3298,7 +3307,7 @@ export function createScene(initial) {
     if (floorS === 0) floorS = floorNow
     floorS += (floorNow - floorS) * (1 - Math.exp(-dt * (floorNow > floorS ? 9 : 3)))
     const altLo = floorS
-    const altHi = Math.max(altLo, p.altitude, clamp(p.ceiling, 20, 6000))
+    const altHi = Math.max(altLo, p.altitude, clamp(p.ceiling, MIN_FLIGHT_CEILING, 6000))
     const climbMax = speed // (it can climb all but straight up)
     const chase = vC + vK > 0.5 // flying from behind or from the seat
 
@@ -3314,6 +3323,11 @@ export function createScene(initial) {
     let flown = false // true while the player is choosing the height
     const stick = p.invertY ? -1 : 1 // like a flight stick, down climbs and up dives
     const steering = p.followPointer && pointerOn && pointerIdle < 5
+    const pointerDescent = introDone && planetRoute.orbit && orbitPointerMoved && p.followPointer && pointerOn && !keyMode
+      && isOrbitDescentPointer(pointerX, pointerY, W, H, p.invertY)
+    const canAim = introDone && planetRoute.inSpace && p.followPointer && pointerOn && !keyMode && !pointerDescent
+      && (!planetRoute.orbit || lead.z >= TRANSIT_ALTITUDE - 5)
+    planetAim = aimAtPlanet(canAim ? planetGlobeViews : [], pointerX, pointerY)
     if (!introDone) {
       want = 0
     } else if (keyMode) {
@@ -3325,6 +3339,12 @@ export function createScene(initial) {
       if (crashOn && boost <= 0.3 && keyClimb * stick < -0.8 && lead.z <= altLo + 3) diveHold += dt
       else diveHold = 0
       commit = diveHold > 0.4
+    } else if (pointerDescent) {
+      want = clamp(wrapAngle(planetRoute.orbit.bearing - lead.yaw) * 1.8, -maxRate, maxRate)
+      ask = -0.6
+      flown = true
+    } else if (planetAim) {
+      want = clamp(wrapAngle(planetAim.bearing - lead.yaw) * 1.8, -maxRate, maxRate)
     } else if (steering && (chase || project(lead.x, lead.y, lead.z))) {
       const vx = pointerX - prX
       const vy = pointerY - prY
@@ -3353,7 +3373,7 @@ export function createScene(initial) {
           want = clamp(err * 2.6, -maxRate, maxRate)
         }
       }
-    } else {
+    } else if (!planetRoute.inSpace) {
       want = maxRate * (0.62 * Math.sin(time * 0.31 + 1.3) + 0.38 * Math.sin(time * 0.73 + 0.4) + 0.22 * Math.sin(time * 0.17))
       want = clamp(want, -maxRate, maxRate)
       if (p.stunts && !drill) {
@@ -3384,9 +3404,10 @@ export function createScene(initial) {
     const hardBack = ask >= STEEP * 0.97 && !commit
     const hardFwd = ask <= -DIVE * 0.97 && !commit
     // (the thrusters, opened by the pilot: not the push the jet gives itself as it flies off after a rescue)
-    const thrusting = boost > 0.3 && (pushing || padThrust > 0.3)
+    const thrusting = !planetRoute.inSpace && boost > 0.3 && (pushing || padThrust > 0.3)
     // (left to itself, it makes its own way back to its cruising height)
-    if (!flown) ask = clamp((p.altitude - lead.z) * 0.012, -0.3, 0.35)
+    const cruise = planetRoute.inSpace ? TRANSIT_ALTITUDE : p.altitude
+    if (!flown) ask = clamp((cruise - lead.z) * 0.012, -0.3, 0.35)
     if (trick) {
       flipping = false
       climbCmd = 0 // (a loop flown for him ends level, wherever it began)
@@ -3418,6 +3439,7 @@ export function createScene(initial) {
     const zWas = lead.z
     // up or down by as much as its nose points up or down …
     let dz = speed * Math.sin(round) * dt
+    if (planetRoute.orbit && dz < 0) dz *= 0.68
     if (!inLoop && !commit) {
       // … flattening out as it comes to the ground, or to its ceiling
       if (dz < 0) dz *= clamp((lead.z - altLo) / 14, 0, 1)
@@ -3444,6 +3466,10 @@ export function createScene(initial) {
       // underneath than most of the clearance
       if (lead.z < altLo) lead.z += Math.min(climbMax * dt, (altLo - lead.z) * (1 - Math.exp(-dt * 4)))
       if (lead.z < hard) lead.z += (hard - lead.z) * (1 - Math.exp(-dt * 22))
+    }
+    if (planetRoute.inSpace && !planetRoute.orbit) {
+      const floor = Math.min(TRANSIT_ALTITUDE, zWas + climbMax * dt)
+      lead.z = Math.max(floor, lead.z)
     }
     dz = lead.z - zWas
     riseNow = dz / Math.max(dt, 1e-4)
@@ -3482,11 +3508,34 @@ export function createScene(initial) {
       if (gap < 3.4 || gap < Math.max(8, -climbV) * 0.4) startEject()
     } else if (struck) startEject()
     }
+    const previousOrbit = planetRoute.orbit
+    const wasInSpace = planetRoute.inSpace
+    if (ej === EJ_FLY && planetRoute.step(lead, dt)) {
+      buildWorld()
+      rebuildPalettes()
+      wake.fill(-1e9)
+    }
+    if (planetRoute.orbit !== previousOrbit) orbitPointerMoved = false
+    if (planetRoute.inSpace && !wasInSpace) {
+      if (viewTarget === 0) viewTarget = 1
+      lockOn = -1
+      lockT = 0
+      volley = 0
+      counterT = 0
+      threatT = 99
+      shots.fill(-1e9)
+      for (const m of missiles) m.on = false
+      for (const m of inbound) m.on = false
+    }
+    if (planetRoute.inSpace !== wasInSpace) {
+      foeMissileWait = 16
+      syncFoes()
+    }
     stepWreckage(dt)
     stepFoes(dt)
     stepClouds(dt)
     stepWeapons(dt)
-    stepWake(dt)
+    if (!planetRoute.mars) stepWake(dt)
     // (it watches until the canopy is shut, then glides back to where it flies from)
     const watching = ej === EJ_ROCKET ? ejT > 0.12 : ej !== EJ_FLY
     cine += ((watching ? 1 : 0) - cine) * (1 - Math.exp(-dt * (watching ? 2.4 : 1.3)))
@@ -3928,7 +3977,7 @@ export function createScene(initial) {
         }
         let top
         let side
-        if (mat < 4) {
+        if (mat < 4 && !planetRoute.mars) {
           top = shade ? topShade[mat] : topLit[mat]
           if (mat === 3) {
             if (((_nz[((gy & 255) << 8) | (gx & 255)] + tF) & 255) < 120) top = shade ? topShade[2] : foamCol
@@ -4604,7 +4653,7 @@ export function createScene(initial) {
       speed: speedNow,
       speedMax: p.speed * clamp(p.boost, 1, 4) * 1.08,
       alt: lead.z,
-      altMax: Math.max(p.altitude, clamp(p.ceiling, 20, 6000)),
+      altMax: Math.max(p.altitude, clamp(p.ceiling, MIN_FLIGHT_CEILING, 6000)),
       climb: clamp(climbTilt / 0.5, -1, 1),
       turn: clamp(lead.yawRate / Math.max(0.1, p.agility), -1, 1),
       boost,
@@ -4668,17 +4717,25 @@ export function createScene(initial) {
       rowLo = 0
       rowHi = H
     }
-    drawWorld()
-    drawSky()
     const altitude = jets[0]?.z ?? 0
     const opacity = orbitOpacity(altitude)
+    if (opacity < 1) {
+      drawWorld()
+      drawSky()
+    }
+    planetGlobeViews = []
     if (opacity > 0) {
       const horizon = vQ > 1e-7 ? vCy - (vS * vTan) / vQ : NaN
-      drawOrbit(fb, zbuf, W, colLo, colHi, rowLo, rowHi, w0, h0,
-        vCx, vCy, horizon, vC + vK, vYaw, altitude, opacity)
+      const forwardYaw = vYaw - wrapAngle(vYaw + jets[0].yaw) * (1 - vC - vK)
+      const globeAnchorY = h0 * (0.41 - 0.09 * vK) + (rolled ? (sheetSide >> 1) - turnY : 0)
+      planetGlobeViews = drawOrbit(fb, zbuf, W, colLo, colHi, rowLo, rowHi, w0, h0,
+        vCx, vCy, horizon, vC + vK, forwardYaw, altitude, opacity, planetRoute, globeAnchorY)
+      if (rolled && planetGlobeViews.length) {
+        placePlanetViewsOnScreen(planetGlobeViews, sheetSide >> 1, w0 >> 1, turnY, vRoll)
+      }
     }
     drawTrails()
-    drawWake()
+    if (!planetRoute.mars) drawWake()
     drawSmoke()
     // far jets first
     drawWreckage()
@@ -4848,6 +4905,13 @@ export function createScene(initial) {
     get flames() { return flameOut },
     /** the view the camera is in, or heading for */
     get view() { return viewTarget === 2 ? 'cockpit' : viewTarget === 1 ? 'chase' : 'top' },
+    get planetRoute() { return planetRoute },
+    get planetAim() { return planetRoute.inSpace ? planetAim : null },
+    get orbitDescentHint() {
+      if (!p.followPointer || keyMode) return 'Descend to enter'
+      return p.invertY ? 'Move cursor to top center to enter' : 'Move cursor to bottom center to enter'
+    },
+    get destinationTurn() { return wrapAngle(planetRoute.target.bearing - jets[0].yaw) },
     get altitude() { const j = jets[0]; return j ? j.z : 0 },
     /**
      * How things stand, for the sound: the thrusters (0..1), the jet's speed against its cruising

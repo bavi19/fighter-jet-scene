@@ -1,3 +1,4 @@
+import { drawPlanetNavigation } from '../lib/planet-route.js'
 import {jsxs as _jsxs, jsx as _jsx, Fragment as _Fragment} from "react/jsx-runtime";import { useEffect, useRef, useState } from 'react'
 import { createScene, DEFAULT_PARAMS } from '../lib/scene.js'
 
@@ -134,80 +135,17 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
       setNoFire(true)
     }
     fire?.addEventListener('webglcontextlost', onFireLost)
-    // the space view has a canvas of its own over the picture: stars and, high up, the
-    // the dark sky above the world as you climb (stars, and the height readout)
     const space = spaceRef.current
     const sctx = space ? space.getContext('2d') : null
-    const stars = []
-    {
-      let seed = 1234567
-      const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296 }
-      for (let i = 0; i < 240; i++) stars.push({ x: rnd(), y: rnd(), r: rnd() < 0.12 ? 2 : 1, a: 0.35 + rnd() * 0.65, ph: rnd() * 6.28 })
-    }
-    // the space amount, smoothed so the sky darkens gradually, never in one step
-    let dispT = 0
-    let lastSpaceNow = 0
-    const drawSpace = (now) => {
-      if (!sctx || !space) return
-      const cw = wrap.clientWidth
-      const ch = wrap.clientHeight
-      if (!cw || !ch) return
+    const drawSpace = () => {
+      if (!sctx) return
+      const width = wrap.clientWidth
+      const height = wrap.clientHeight
+      if (!width || !height) return
       const dpr = Math.min(2, window.devicePixelRatio || 1)
       sctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      sctx.clearRect(0, 0, cw, ch)
-      const alt = scene.altitude
-      const t = Math.min(1, Math.max(0, (alt - 120) / 180)) // 0 on the ground, 1 in space
-      // ease toward the target so the sky darkens gradually, never in one step
-      const dt = lastSpaceNow ? Math.min(0.1, Math.max(0, (now - lastSpaceNow) / 1000)) : 0.016
-      lastSpaceNow = now
-      dispT += (t - dispT) * (1 - Math.exp(-dt / 0.5))
-      if (dispT <= 0.005) return
-      const spaceT = dispT * dispT * (3 - 2 * dispT)
-      const view = scene.view
-      // the sky darkens to space as you climb — that is the whole effect now:
-      // no globe, just a dark sky and stars above the world
-      if (view === 'top') {
-        sctx.fillStyle = 'rgba(2,4,12,' + spaceT.toFixed(3) + ')'
-        sctx.fillRect(0, 0, cw, ch)
-        // the veil would swallow the jet too: clear a soft patch of sky around it, so the
-        // sunlit plane stays readable while the rest of the sky stays black (the jet sits
-        // at the centre of the overhead view, so the patch sits there too)
-        const jr = Math.min(cw, ch) * 0.11 + 30
-        const hg = sctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, jr)
-        hg.addColorStop(0, 'rgba(2,4,12,' + spaceT.toFixed(3) + ')')
-        hg.addColorStop(0.55, 'rgba(2,4,12,' + spaceT.toFixed(3) + ')')
-        hg.addColorStop(1, 'rgba(2,4,12,0)')
-        sctx.save()
-        sctx.globalCompositeOperation = 'destination-out'
-        sctx.fillStyle = hg
-        sctx.fillRect(cw / 2 - jr, ch / 2 - jr, jr * 2, jr * 2)
-        sctx.restore()
-      } else if (view === 'chase') {
-        const g = sctx.createLinearGradient(0, 0, 0, ch * 0.6)
-        g.addColorStop(0, 'rgba(2,4,12,' + (spaceT * 0.75).toFixed(3) + ')')
-        g.addColorStop(1, 'rgba(2,4,12,0)')
-        sctx.fillStyle = g
-        sctx.fillRect(0, 0, cw, ch * 0.6)
-      }
-      // stars, above the horizon (in the cockpit, above the panel)
-      const top = view === 'cockpit' ? 0.45 : view === 'chase' ? 0.75 : 1
-      sctx.fillStyle = '#fff'
-      for (let i = 0; i < stars.length; i++) {
-        const st = stars[i]
-        if (st.y > top) continue
-        const tw = 0.55 + 0.45 * Math.sin(now / 700 + st.ph)
-        sctx.globalAlpha = spaceT * st.a * tw
-        sctx.fillRect(st.x * cw, st.y * ch, st.r, st.r)
-      }
-      sctx.globalAlpha = 1
-      // height, so the climb reads while the scene's own HUD is fading out
-      sctx.save()
-      sctx.globalAlpha = dispT
-      sctx.fillStyle = 'rgba(255,255,255,0.9)'
-      sctx.font = '11px monospace'
-      sctx.textAlign = 'left'
-      sctx.fillText('ALT ' + Math.round(alt) + (alt >= 300 ? ' · IN SPACE' : ' · LEAVING THE ATMOSPHERE'), 14, 24)
-      sctx.restore()
+      sctx.clearRect(0, 0, width, height)
+      drawPlanetNavigation(sctx, width, height, scene)
     }
 
     const layout = () => {
@@ -361,7 +299,7 @@ export default function FighterJetScene({ pixelSize = 0, showHint = true, touchC
         }
       }
       if (fire && layer) layer.draw(flames.count, flames.data, fire.width / scene.width, now / 1000)
-      drawSpace(now)
+      drawSpace()
     }
     raf = requestAnimationFrame(frame)
 

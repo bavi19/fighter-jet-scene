@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import FighterJetScene from './components/fighter-jet-scene.js';
 import FighterJetEject from './components/fighter-jet-eject.js';
+import { MIN_FLIGHT_CEILING } from './lib/planet-route.js';
 import { sound } from './lib/sound.js';
 
 const h = React.createElement;
@@ -10,7 +11,7 @@ const h = React.createElement;
 // (Source: the fragment's public share data — speed 92, seed 7, grey jet #545969, …)
 const LIVE_VALUES = {
   showHint: true, touchControls: 'auto',
-  speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 300,
+  speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 360,
   clearance: 7, wingmen: 0, followPointer: true, invertY: true, stunts: true,
   jetScale: 0.6, spread: 1, pixelSize: 3, intro: false,
   view: 'top', model: 'falcon', transition: 1.4, cameraFollow: 0.6, chaseDistance: 2.6,
@@ -48,12 +49,12 @@ const PLANES = {
   falcon: {
     label: 'Falcon', model: 'falcon',
     desc: 'The original — balanced, grey with orange accents.',
-    spec: { speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 300, afterburner: 1, jetScale: 0.6, bodyColor: '#545969', accentColor: '#f0580e', canopyColor: '#1e8ca0' },
+    spec: { speed: 92, boost: 1.8, agility: 1.25, bank: 52, altitude: 110, ceiling: 360, afterburner: 1, jetScale: 0.6, bodyColor: '#545969', accentColor: '#f0580e', canopyColor: '#1e8ca0' },
   },
   dart: {
     label: 'Dart', model: 'dart',
     desc: 'Narrow and long — fast and twitchy, climbs lower.',
-    spec: { speed: 150, boost: 2.2, agility: 2.1, bank: 64, altitude: 90, ceiling: 260, afterburner: 1, jetScale: 0.55, bodyColor: '#3a3f52', accentColor: '#19b8d0', canopyColor: '#1e8ca0' },
+    spec: { speed: 150, boost: 2.2, agility: 2.1, bank: 64, altitude: 90, ceiling: 350, afterburner: 1, jetScale: 0.55, bodyColor: '#3a3f52', accentColor: '#19b8d0', canopyColor: '#1e8ca0' },
   },
   titan: {
     label: 'Titan', model: 'titan',
@@ -84,7 +85,7 @@ const SECTIONS = [
     { prop: 'agility', label: 'Turn rate', min: 0.3, max: 3, step: 0.05 },
     { prop: 'bank', label: 'Bank angle', min: 0, max: 80, step: 1 },
     { prop: 'altitude', label: 'Cruising altitude', min: 10, max: 600, step: 1 },
-    { prop: 'ceiling', label: 'Ceiling', min: 60, max: 900, step: 5 },
+    { prop: 'ceiling', label: 'Ceiling', min: MIN_FLIGHT_CEILING, max: 900, step: 5 },
     { prop: 'clearance', label: 'Ground clearance', min: 3, max: 40, step: 1 },
     { prop: 'wingmen', label: 'Wingmen', min: 0, max: 2, step: 1 },
   ] },
@@ -166,7 +167,9 @@ function App() {
   const [params, setParams] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('fighter-jet-params') || 'null');
-      return saved ? { ...LIVE_VALUES, ...saved } : LIVE_VALUES;
+      if (!saved) return LIVE_VALUES;
+      const ceiling = Math.max(MIN_FLIGHT_CEILING, saved.ceiling ?? LIVE_VALUES.ceiling);
+      return { ...LIVE_VALUES, ...saved, ceiling };
     } catch { return LIVE_VALUES; }
   });
   const [mode, setMode] = useState(() => {
